@@ -58,7 +58,16 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # For dev only, should be restricted in prod
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:4016",
+        "https://localhost:5017",
+        "https://kairos.gokulp.online",
+        "https://kairosb.gokulp.online",
+        "http://kairos.gokulp.online",
+        "http://kairosb.gokulp.online",
+    ], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -83,4 +92,4 @@ app.include_router(settings_router, prefix="/api/settings", tags=["Settings"])
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=4016, reload=True)
