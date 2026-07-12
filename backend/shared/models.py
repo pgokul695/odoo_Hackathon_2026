@@ -4,6 +4,8 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from core.database import Base
+from shared.enums import Role
+
 
 class User(Base):
     __tablename__ = "users"
@@ -14,10 +16,15 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     email_verified_at = Column(DateTime, nullable=True)
     two_factor_enabled = Column(Boolean, default=False)
+    role = Column(String, default=Role.User.value)
+    department_id = Column(UUID(as_uuid=True), ForeignKey('departments.id'), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     otp_codes = relationship("OtpCode", back_populates="user")
+    department = relationship("Department", back_populates="users")
+    activity_logs = relationship("ActivityLog", back_populates="user")
+
 
 
 class OtpCode(Base):
@@ -34,3 +41,24 @@ class OtpCode(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     user = relationship("User", back_populates="otp_codes")
+
+class Department(Base):
+    __tablename__ = "departments"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String, nullable=False)
+    
+    users = relationship("User", back_populates="department")
+
+class ActivityLog(Base):
+    __tablename__ = "activity_logs"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    module = Column(String, nullable=False)
+    action = Column(String, nullable=False)
+    details = Column(String, nullable=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    user = relationship("User", back_populates="activity_logs")
+

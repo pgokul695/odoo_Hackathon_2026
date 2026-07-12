@@ -16,6 +16,11 @@ from modules.notifications.router import router as notifications_router
 from modules.auth.router import router as auth_router
 
 from core.database import engine, Base
+from core.exceptions import AppException
+from core.response import ErrorResponse
+from fastapi.responses import JSONResponse
+from fastapi import Request
+
 
 # Create database tables for hackathon scope
 try:
@@ -26,7 +31,15 @@ except Exception as e:
 
 app = FastAPI(title=settings.PROJECT_NAME)
 
+@app.exception_handler(AppException)
+async def app_exception_handler(request: Request, exc: AppException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=ErrorResponse(message=exc.message, errors=exc.errors).model_dump()
+    )
+
 # CORS configuration
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], # For dev only, should be restricted in prod
