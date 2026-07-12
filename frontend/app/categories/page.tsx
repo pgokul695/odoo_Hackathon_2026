@@ -11,8 +11,7 @@ export default function CategoriesPage() {
   const [search, setSearch] = useState('');
 
   const filtered = categories.filter((cat) =>
-    cat.name.toLowerCase().includes(search.toLowerCase()) ||
-    cat.description.toLowerCase().includes(search.toLowerCase())
+    cat.name.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -39,15 +38,13 @@ export default function CategoriesPage() {
             <thead>
               <tr className="border-b border-border/50 bg-muted/30 text-muted-foreground uppercase font-bold tracking-widest">
                 <th className="p-4">Category Name</th>
-                <th className="p-4">Description Coordinates</th>
-                <th className="p-4">Total Tokens Registered</th>
-                <th className="p-4 text-right">Active Allocations</th>
+                <th className="p-4">Active Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/40">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="p-8 text-center text-muted-foreground">
+                  <td colSpan={2} className="p-8 text-center text-muted-foreground">
                     No categories found matching your criteria.
                   </td>
                 </tr>
@@ -58,12 +55,8 @@ export default function CategoriesPage() {
                       <FolderTree className="w-4 h-4 text-primary" />
                       {cat.name}
                     </td>
-                    <td className="p-4 text-muted-foreground font-medium max-w-xs truncate">{cat.description}</td>
-                    <td className="p-4 text-foreground font-bold">{cat.totalAssets} Units</td>
-                    <td className="p-4 text-right font-bold text-foreground">
-                      <span className="text-success bg-success/5 px-2 py-0.5 border border-success/15 rounded-full">
-                        {cat.allocatedAssets} Allocated ({Math.round((cat.allocatedAssets / (cat.totalAssets || 1)) * 100)}%)
-                      </span>
+                    <td className="p-4 text-muted-foreground font-medium">
+                      {cat.is_active ? 'Active' : 'Inactive'}
                     </td>
                   </tr>
                 ))

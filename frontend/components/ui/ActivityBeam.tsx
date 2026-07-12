@@ -70,8 +70,8 @@ export function ActivityBeam() {
 
         <div className="space-y-5">
           {recentActivities.map((act, index) => {
-            const IconComponent = getIcon(act.category);
-            const colorClass = getCategoryColor(act.category);
+            const IconComponent = getIcon('System');
+            const colorClass = getCategoryColor('System');
             const isNewest = index === 0;
 
             return (
@@ -103,10 +103,10 @@ export function ActivityBeam() {
                   </p>
                   <div className="flex items-center space-x-2 mt-1">
                     <span className="text-[10px] text-muted-foreground font-mono">
-                      {act.timestamp}
+                      {new Date(act.created_at).toLocaleDateString()}
                     </span>
                     <span className="text-[9px] font-semibold text-muted-foreground/70 uppercase tracking-widest">
-                      • {act.category}
+                      • System
                     </span>
                   </div>
                 </div>

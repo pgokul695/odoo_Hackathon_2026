@@ -47,7 +47,7 @@ export default function EmployeesPage() {
                 <th className="p-4">Role</th>
                 <th className="p-4">Department</th>
                 <th className="p-4">Primary Contact</th>
-                <th className="p-4 text-right">Equipment Checked Out</th>
+                <th className="p-4 text-right">2FA Enabled</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/40">
@@ -65,16 +65,16 @@ export default function EmployeesPage() {
                       {emp.name}
                     </td>
                     <td className="p-4 text-muted-foreground font-medium">{emp.role}</td>
-                    <td className="p-4 text-foreground font-medium">{getDeptName(emp.departmentId)}</td>
+                    <td className="p-4 text-foreground font-medium">{getDeptName(emp.department_id || '')}</td>
                     <td className="p-4 text-muted-foreground font-mono flex items-center gap-1.5 pt-4">
                       <Mail className="w-3.5 h-3.5 text-muted-foreground/60" />
                       {emp.email}
                     </td>
                     <td className="p-4 text-right font-bold text-foreground">
                       <span className={`px-2 py-0.5 rounded-full ${
-                        emp.activeAssetsCount > 0 ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+                        emp.two_factor_enabled ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
                       }`}>
-                        {emp.activeAssetsCount} {emp.activeAssetsCount === 1 ? 'Asset' : 'Assets'}
+                        {emp.two_factor_enabled ? 'Yes' : 'No'}
                       </span>
                     </td>
                   </tr>

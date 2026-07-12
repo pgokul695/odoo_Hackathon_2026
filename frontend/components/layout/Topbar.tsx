@@ -13,7 +13,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   const { theme, setTheme } = useTheme();
   const { notifications } = useAssetStore();
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = notifications.filter(n => !n.is_read).length;
 
   const cycleTheme = () => {
     if (theme === 'dark') setTheme('light');

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { apiClient } from '@/components/store/api';
+import { api } from '@/lib/api';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('keerthana.v@assetflow.ai');
@@ -17,7 +17,7 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      const response = await apiClient.post('/auth/login/', { email, password });
+      const response = await api.post('/auth/login/', { email, password });
       
       if (response.data?.requires_2fa) {
         // Assume you will build or redirect to 2FA page later

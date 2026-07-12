@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useAssetStore, Audit } from '@/components/store/AssetStore';
+import { useAssetStore } from '@/components/store/AssetStore';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { ScanFrame } from '@/components/ui/ScanFrame';
 import { 
@@ -11,6 +11,7 @@ import {
   XCircle, 
   AlertTriangle 
 } from 'lucide-react';
+import { AuditResultType } from '@/types/api';
 
 export default function AuditsPage() {
   const { assets, audits, submitAudit } = useAssetStore();
@@ -19,25 +20,17 @@ export default function AuditsPage() {
 
   const targetAsset = assets.find((a) => a.id === selectedAssetId);
 
-  const handleAuditSubmit = (status: Audit['status']) => {
+  const handleAuditSubmit = (result: AuditResultType) => {
     if (!selectedAssetId) return alert('Select an asset to audit.');
     
-    submitAudit(selectedAssetId, 'Keerthana Vinod', status, notes);
+    // Note: Keerthana Vinod should be an actual user ID. Hardcoded for now.
+    submitAudit(selectedAssetId, 'u-1', result, notes);
     
     // Reset form
     setSelectedAssetId('');
     setNotes('');
   };
 
-  const getStatusIcon = (stat: Audit['status']) => {
-    switch (stat) {
-      case 'Found': return <CheckCircle className="w-4.5 h-4.5 text-success" />;
-      case 'Missing': return <XCircle className="w-4.5 h-4.5 text-destructive" />;
-      default: return <AlertTriangle className="w-4.5 h-4.5 text-warning" />;
-    }
-  };
-
-  const getAssetName = (id: string) => assets.find(a => a.id === id)?.name || 'Unknown';
 
   return (
     <div className="space-y-6">
@@ -85,8 +78,8 @@ export default function AuditsPage() {
                     <span className="font-bold text-primary">{targetAsset.id}</span>
                   </div>
                   <div className="flex justify-between font-medium">
-                    <span className="text-muted-foreground">Serial Number</span>
-                    <span className="font-bold text-foreground">{targetAsset.serialNumber}</span>
+                    <span className="text-muted-foreground">Category</span>
+                    <span className="font-bold text-foreground">{targetAsset.category_id}</span>
                   </div>
                 </div>
 
@@ -114,21 +107,21 @@ export default function AuditsPage() {
           {targetAsset && (
             <div className="grid grid-cols-3 gap-3 border-t border-border/40 pt-4 mt-6">
               <button
-                onClick={() => handleAuditSubmit('Missing')}
+                onClick={() => handleAuditSubmit('MISSING')}
                 className="py-3.5 bg-destructive/15 border border-destructive/25 text-destructive hover:bg-destructive hover:text-destructive-foreground text-xs font-bold rounded-lg uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1.5 shadow-sm"
               >
                 <XCircle className="w-5 h-5" />
                 Missing
               </button>
               <button
-                onClick={() => handleAuditSubmit('Damaged')}
+                onClick={() => handleAuditSubmit('DAMAGED')}
                 className="py-3.5 bg-warning/15 border border-warning/25 text-warning hover:bg-warning hover:text-warning-foreground text-xs font-bold rounded-lg uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1.5 shadow-sm"
               >
                 <AlertTriangle className="w-5 h-5" />
                 Damaged
               </button>
               <button
-                onClick={() => handleAuditSubmit('Found')}
+                onClick={() => handleAuditSubmit('FOUND')}
                 className="py-3.5 bg-success/15 border border-success/25 text-success hover:bg-success hover:text-success-foreground text-xs font-bold rounded-lg uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1.5 shadow-sm"
               >
                 <CheckCircle className="w-5 h-5" />
@@ -150,34 +143,30 @@ export default function AuditsPage() {
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="border-b border-border/50 text-muted-foreground uppercase font-bold tracking-widest bg-muted/10">
-                <th className="p-4">Asset Scanned</th>
-                <th className="p-4">Audited Date</th>
-                <th className="p-4">Auditor Name</th>
-                <th className="p-4">Findings Outcome</th>
-                <th className="p-4">Audit Notes</th>
+                <th className="p-4">Audit Name</th>
+                <th className="p-4">Audit ID</th>
+                <th className="p-4">Created Date</th>
+                <th className="p-4">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/40">
               {audits.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-muted-foreground">No audit entries verified yet.</td>
+                  <td colSpan={4} className="p-8 text-center text-muted-foreground">No audit entries verified yet.</td>
                 </tr>
               ) : (
                 audits.map((item) => (
                   <tr key={item.id} className="hover:bg-muted/15 transition-all">
                     <td className="p-4">
-                      <p className="font-bold text-foreground">{getAssetName(item.assetId)}</p>
-                      <p className="text-[9px] text-muted-foreground font-mono mt-0.5">{item.assetId}</p>
+                      <p className="font-bold text-foreground">{item.name}</p>
                     </td>
-                    <td className="p-4 font-mono font-medium text-muted-foreground">{item.auditDate}</td>
-                    <td className="p-4 text-foreground font-semibold">{item.auditorName}</td>
+                    <td className="p-4 text-[10px] text-muted-foreground font-mono">{item.id}</td>
+                    <td className="p-4 font-mono font-medium text-muted-foreground">{new Date(item.created_at).toLocaleDateString()}</td>
                     <td className="p-4">
                       <div className="flex items-center gap-1.5">
-                        {getStatusIcon(item.status)}
                         <span className="font-bold">{item.status}</span>
                       </div>
                     </td>
-                    <td className="p-4 text-muted-foreground font-medium max-w-xs truncate">{item.notes || 'No remarks recorded.'}</td>
                   </tr>
                 ))
               )}

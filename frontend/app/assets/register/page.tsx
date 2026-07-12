@@ -15,18 +15,13 @@ import {
 
 export default function RegisterAssetPage() {
   const router = useRouter();
-  const { categories, departments, employees, addAsset } = useAssetStore();
+  const { categories, departments, addAsset } = useAssetStore();
 
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     name: '',
-    categoryId: 'c-1',
-    serialNumber: '',
-    notes: '',
-    purchaseDate: new Date().toISOString().split('T')[0],
-    purchaseValue: '',
-    departmentId: 'd-1',
-    assignedToId: 'none',
+    category_id: 'c-1',
+    department_id: 'd-1',
   });
 
   const [attachments, setAttachments] = useState<{ name: string; size: string; date: string }[]>([]);
@@ -69,25 +64,15 @@ export default function RegisterAssetPage() {
     // Save to global context
     addAsset({
       name: formData.name || 'Generic Device',
-      categoryId: formData.categoryId,
-      departmentId: formData.departmentId,
-      assignedToId: formData.assignedToId,
-      status: formData.assignedToId !== 'none' ? 'Allocated' : 'Available',
-      purchaseDate: formData.purchaseDate,
-      purchaseValue: Number(formData.purchaseValue) || 50000,
-      serialNumber: formData.serialNumber || 'SN-MOCK-RANDOM',
-      notes: formData.notes,
-      attachments: attachments,
-      lastActivity: 'Asset registered'
+      category_id: formData.category_id,
+      department_id: formData.department_id,
+      status: 'AVAILABLE',
+      is_active: true
     });
 
     router.push('/assets');
   };
 
-  // Filter employees for the selected department
-  const filteredEmployees = employees.filter(
-    (emp) => emp.departmentId === formData.departmentId
-  );
 
   return (
     <div className="space-y-6">
@@ -163,8 +148,8 @@ export default function RegisterAssetPage() {
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Category *</label>
                 <select
-                  name="categoryId"
-                  value={formData.categoryId}
+                  name="category_id"
+                  value={formData.category_id}
                   onChange={handleInputChange}
                   className="block w-full px-3 py-2 bg-card border border-border/80 rounded-lg text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
                 >
@@ -174,30 +159,6 @@ export default function RegisterAssetPage() {
                 </select>
               </div>
             </div>
-
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Serial Number</label>
-              <input
-                name="serialNumber"
-                type="text"
-                placeholder="e.g. C02F1234Q05D"
-                value={formData.serialNumber}
-                onChange={handleInputChange}
-                className="block w-full px-3 py-2 bg-card border border-border/80 rounded-lg text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Configuration & Notes</label>
-              <textarea
-                name="notes"
-                rows={3}
-                placeholder="Hardware specs, setup codes, physical condition, etc."
-                value={formData.notes}
-                onChange={handleInputChange}
-                className="block w-full px-3 py-2 bg-card border border-border/80 rounded-lg text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all resize-none"
-              />
-            </div>
           </div>
         )}
 
@@ -206,29 +167,13 @@ export default function RegisterAssetPage() {
           <div className="space-y-4">
             <h3 className="text-sm font-bold text-foreground border-b border-border/40 pb-2">Step 2: Financials & Assignment</h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Purchase Value (INR) *</label>
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Initial Status</label>
                 <input
-                  required
-                  name="purchaseValue"
-                  type="number"
-                  placeholder="e.g. 75000"
-                  value={formData.purchaseValue}
-                  onChange={handleInputChange}
-                  className="block w-full px-3 py-2 bg-card border border-border/80 rounded-lg text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Purchase Date *</label>
-                <input
-                  required
-                  name="purchaseDate"
-                  type="date"
-                  value={formData.purchaseDate}
-                  onChange={handleInputChange}
-                  className="block w-full px-3 py-2 bg-card border border-border/80 rounded-lg text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+                  disabled
+                  value="AVAILABLE"
+                  className="block w-full px-3 py-2 bg-card border border-border/80 rounded-lg text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all opacity-50"
                 />
               </div>
             </div>
@@ -237,13 +182,9 @@ export default function RegisterAssetPage() {
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Custodian Department *</label>
                 <select
-                  name="departmentId"
-                  value={formData.departmentId}
-                  onChange={(e) => {
-                    handleInputChange(e);
-                    // Reset assignment when changing department to prevent cross department assignment initially
-                    setFormData(prev => ({ ...prev, departmentId: e.target.value, assignedToId: 'none' }));
-                  }}
+                  name="department_id"
+                  value={formData.department_id}
+                  onChange={handleInputChange}
                   className="block w-full px-3 py-2 bg-card border border-border/80 rounded-lg text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
                 >
                   {departments.map((d) => (
@@ -253,18 +194,8 @@ export default function RegisterAssetPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Assignee Employee</label>
-                <select
-                  name="assignedToId"
-                  value={formData.assignedToId}
-                  onChange={handleInputChange}
-                  className="block w-full px-3 py-2 bg-card border border-border/80 rounded-lg text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
-                >
-                  <option value="none">None (Keep in Available Pool)</option>
-                  {filteredEmployees.map((e) => (
-                    <option key={e.id} value={e.id}>{e.name} ({e.role})</option>
-                  ))}
-                </select>
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Assignment Note</label>
+                <p className="text-xs text-muted-foreground">To assign an employee, please use the allocations module after the asset is successfully registered and available.</p>
               </div>
             </div>
           </div>

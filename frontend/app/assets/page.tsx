@@ -13,30 +13,36 @@ import {
   ExternalLink,
   Laptop
 } from 'lucide-react';
+import { AssetStatus, Asset } from '@/types/api';
 
 export default function AssetsPage() {
   const router = useRouter();
-  const { assets, categories, departments, employees } = useAssetStore();
+  const { assets, categories, departments, getAssetEmployee } = useAssetStore();
   
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'All' | 'Available' | 'Allocated' | 'Under Maintenance' | 'Retired'>('All');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | AssetStatus>('ALL');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 
-  const getCategoryName = (catId: string) => categories.find(c => c.id === catId)?.name || 'Unknown';
-  const getDeptName = (deptId: string) => departments.find(d => d.id === deptId)?.name || 'Unknown';
-  const getEmployeeName = (empId: string) => {
-    if (empId === 'none') return 'Available Pool';
-    return employees.find(e => e.id === empId)?.name || 'Unknown';
+  const getCategoryName = (catId: string | null) => {
+    if (!catId) return 'Unknown';
+    return categories.find(c => c.id === catId)?.name || 'Unknown';
+  };
+  const getDeptName = (deptId: string | null) => {
+    if (!deptId) return 'Unknown';
+    return departments.find(d => d.id === deptId)?.name || 'Unknown';
+  };
+  const getEmployeeName = (asset: Asset) => {
+    const emp = getAssetEmployee(asset);
+    return emp ? emp.name : 'Available Pool';
   };
 
   // Filter logic
   const filteredAssets = assets.filter((asset) => {
     const matchesSearch = 
       asset.name.toLowerCase().includes(search.toLowerCase()) ||
-      asset.id.toLowerCase().includes(search.toLowerCase()) ||
-      asset.serialNumber.toLowerCase().includes(search.toLowerCase());
+      asset.id.toLowerCase().includes(search.toLowerCase());
     
-    const matchesStatus = statusFilter === 'All' || asset.status === statusFilter;
+    const matchesStatus = statusFilter === 'ALL' || asset.status === statusFilter;
     
     return matchesSearch && matchesStatus;
   });
@@ -61,11 +67,11 @@ export default function AssetsPage() {
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-card/45 backdrop-blur-md p-4 rounded-xl border border-border/80">
         
         {/* Search */}
-        <SearchBar value={search} onChange={setSearch} placeholder="Search assets, IDs, serials..." />
+        <SearchBar value={search} onChange={setSearch} placeholder="Search assets, IDs..." />
 
         {/* Status filters */}
         <div className="flex flex-wrap items-center gap-1">
-          {(['All', 'Available', 'Allocated', 'Under Maintenance', 'Retired'] as const).map((filter) => (
+          {(['ALL', 'AVAILABLE', 'ALLOCATED', 'UNDER_MAINTENANCE', 'RETIRED'] as const).map((filter) => (
             <button
               key={filter}
               onClick={() => setStatusFilter(filter)}
@@ -75,7 +81,7 @@ export default function AssetsPage() {
                   : 'bg-card border-border/70 hover:border-border text-muted-foreground hover:text-foreground'
               }`}
             >
-              {filter}
+              {filter.replace('_', ' ')}
             </button>
           ))}
         </div>
@@ -117,7 +123,6 @@ export default function AssetsPage() {
                   <th className="p-4">Department</th>
                   <th className="p-4">Assigned To</th>
                   <th className="p-4">Status</th>
-                  <th className="p-4">Last activity</th>
                   <th className="p-4 text-right">Actions</th>
                 </tr>
               </thead>
@@ -135,11 +140,10 @@ export default function AssetsPage() {
                       {asset.name}
                     </td>
                     <td className="p-4 font-mono font-bold text-muted-foreground">{asset.id}</td>
-                    <td className="p-4 text-foreground font-medium">{getCategoryName(asset.categoryId)}</td>
-                    <td className="p-4 text-muted-foreground font-medium">{getDeptName(asset.departmentId)}</td>
-                    <td className="p-4 text-foreground font-medium">{getEmployeeName(asset.assignedToId)}</td>
+                    <td className="p-4 text-foreground font-medium">{getCategoryName(asset.category_id)}</td>
+                    <td className="p-4 text-muted-foreground font-medium">{getDeptName(asset.department_id)}</td>
+                    <td className="p-4 text-foreground font-medium">{getEmployeeName(asset)}</td>
                     <td className="p-4"><AssetStatusBadge status={asset.status} /></td>
-                    <td className="p-4 text-muted-foreground font-medium">{asset.lastActivity}</td>
                     <td className="p-4 text-right" onClick={(e) => e.stopPropagation()}>
                       <button 
                         onClick={() => router.push(`/assets/${asset.id}`)}
@@ -170,17 +174,17 @@ export default function AssetsPage() {
                   <AssetStatusBadge status={asset.status} />
                 </div>
                 <h4 className="font-extrabold text-foreground mt-2 text-sm leading-snug">{asset.name}</h4>
-                <p className="text-[10px] text-muted-foreground font-medium mt-1 uppercase tracking-wider">{getCategoryName(asset.categoryId)}</p>
+                <p className="text-[10px] text-muted-foreground font-medium mt-1 uppercase tracking-wider">{getCategoryName(asset.category_id)}</p>
               </div>
 
               <div className="border-t border-border/40 mt-4 pt-3 space-y-1.5 text-[11px]">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Department</span>
-                  <span className="text-foreground font-semibold">{getDeptName(asset.departmentId)}</span>
+                  <span className="text-foreground font-semibold">{getDeptName(asset.department_id)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Assigned to</span>
-                  <span className="text-foreground font-semibold">{getEmployeeName(asset.assignedToId)}</span>
+                  <span className="text-foreground font-semibold">{getEmployeeName(asset)}</span>
                 </div>
               </div>
             </div>

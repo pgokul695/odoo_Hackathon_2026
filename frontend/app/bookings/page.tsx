@@ -17,10 +17,8 @@ export default function BookingsPage() {
   
   const [showAddForm, setShowAddForm] = useState(false);
   const [assetId, setAssetId] = useState('');
-  const requesterName = 'Keerthana Vinod';
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [purpose, setPurpose] = useState('');
   
   const [bookingError, setBookingError] = useState<string | null>(null);
 
@@ -39,17 +37,15 @@ export default function BookingsPage() {
     const endISO = new Date(endDate).toISOString().slice(0, 16);
 
     const result = createBooking({
-      assetId,
-      requesterName,
-      startDate: startISO,
-      endDate: endISO,
-      purpose
+      asset_id: assetId,
+      employee_id: 'u-1',
+      start_time: startISO,
+      end_time: endISO
     });
 
     if (result.success) {
       setShowAddForm(false);
       setAssetId('');
-      setPurpose('');
       setStartDate('');
       setEndDate('');
     } else if (result.error) {
@@ -135,16 +131,7 @@ export default function BookingsPage() {
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Purpose of reservation</label>
-            <input
-              type="text"
-              placeholder="e.g. GPU inference modeling review"
-              value={purpose}
-              onChange={(e) => setPurpose(e.target.value)}
-              className="block w-full px-3 py-2 bg-card border border-border/80 rounded-lg text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-          </div>
+
 
           <button
             type="submit"
@@ -172,15 +159,15 @@ export default function BookingsPage() {
                 <div className="flex items-center space-x-3.5">
                   <div className="p-2 rounded bg-primary/10 border border-primary/20 text-primary"><Laptop className="w-4 h-4" /></div>
                   <div>
-                    <h5 className="text-xs font-bold text-foreground">{getAssetName(bk.assetId)}</h5>
-                    <p className="text-[10px] text-muted-foreground leading-none mt-1">Requester: {bk.requesterName} • Purpose: {bk.purpose}</p>
+                    <h5 className="text-xs font-bold text-foreground">{getAssetName(bk.asset_id)}</h5>
+                    <p className="text-[10px] text-muted-foreground leading-none mt-1">Requester ID: {bk.employee_id}</p>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-4 text-xs md:text-right">
                   <div className="flex items-center space-x-1 text-muted-foreground">
                     <Clock className="w-3.5 h-3.5 text-muted-foreground/60" />
-                    <span className="font-medium text-[11px]">{formatDateTime(bk.startDate)} ➔ {formatDateTime(bk.endDate)}</span>
+                    <span className="font-medium text-[11px]">{formatDateTime(bk.start_time)} ➔ {formatDateTime(bk.end_time)}</span>
                   </div>
                   <span className="px-2 py-0.5 rounded-full text-[9px] font-bold border bg-success/10 border-success/20 text-success uppercase leading-none">
                     {bk.status}

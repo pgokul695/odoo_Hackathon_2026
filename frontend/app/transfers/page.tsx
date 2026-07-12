@@ -73,7 +73,7 @@ export default function TransfersPage() {
                 className="block w-full px-3 py-2 bg-card border border-border/80 rounded-lg text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
               >
                 {assets.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name} ({a.id}) - {getDeptName(a.departmentId)}</option>
+                  <option key={a.id} value={a.id}>{a.name} ({a.id}) - {getDeptName(a.department_id || '')}</option>
                 ))}
               </select>
             </div>
@@ -103,11 +103,11 @@ export default function TransfersPage() {
       )}
 
       {/* Active Transfer flow spotlight */}
-      {transfers.length > 0 && transfers[0].status === 'Pending' && (
+      {transfers.length > 0 && transfers[0].status === 'PENDING' && (
         <div className="glass-panel p-5 rounded-xl border border-border/80 shadow-sm max-w-xl mx-auto flex items-center justify-between text-xs">
           <div className="flex flex-col items-center">
             <div className="p-2 rounded-lg bg-primary/10 text-primary border border-primary/20"><Building2 className="w-4 h-4" /></div>
-            <span className="font-bold text-foreground mt-2">{getDeptName(transfers[0].fromDepartmentId)}</span>
+            <span className="font-bold text-foreground mt-2">{getDeptName(transfers[0].from_department_id || '')}</span>
           </div>
 
           {/* Animated Directional Flow line */}
@@ -126,7 +126,7 @@ export default function TransfersPage() {
 
           <div className="flex flex-col items-center">
             <div className="p-2 rounded-lg bg-secondary/10 text-secondary border border-secondary/20"><Building2 className="w-4 h-4" /></div>
-            <span className="font-bold text-foreground mt-2">{getDeptName(transfers[0].toDepartmentId)}</span>
+            <span className="font-bold text-foreground mt-2">{getDeptName(transfers[0].to_department_id || '')}</span>
           </div>
         </div>
       )}
@@ -158,21 +158,21 @@ export default function TransfersPage() {
                   <tr key={item.id} className="hover:bg-muted/20 transition-colors">
                     <td className="p-4 font-mono font-bold text-primary">{item.id}</td>
                     <td className="p-4">
-                      <p className="font-bold text-foreground">{getAssetName(item.assetId)}</p>
-                      <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{item.assetId}</p>
+                      <p className="font-bold text-foreground">{getAssetName(item.asset_id)}</p>
+                      <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{item.asset_id}</p>
                     </td>
-                    <td className="p-4 text-muted-foreground font-medium">{getDeptName(item.fromDepartmentId)}</td>
+                    <td className="p-4 text-muted-foreground font-medium">{getDeptName(item.from_department_id || '')}</td>
                     <td className="p-4 text-center">
                       <div className="mx-auto w-7 h-7 rounded-full bg-muted/50 border border-border flex items-center justify-center text-muted-foreground">
                         <ArrowRightLeft className="w-3.5 h-3.5" />
                       </div>
                     </td>
-                    <td className="p-4 text-foreground font-semibold">{getDeptName(item.toDepartmentId)}</td>
+                    <td className="p-4 text-foreground font-semibold">{getDeptName(item.to_department_id || '')}</td>
                     <td className="p-4">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold border ${
-                        item.status === 'Approved'
+                        item.status === 'APPROVED'
                           ? 'bg-success/10 border-success/20 text-success'
-                          : item.status === 'Rejected'
+                          : item.status === 'REJECTED'
                           ? 'bg-destructive/10 border-destructive/20 text-destructive'
                           : 'bg-warning/10 border-warning/20 text-warning'
                       }`}>
@@ -180,7 +180,7 @@ export default function TransfersPage() {
                       </span>
                     </td>
                     <td className="p-4 text-right">
-                      {item.status === 'Pending' ? (
+                      {item.status === 'PENDING' ? (
                         <div className="flex justify-end gap-1.5">
                           <button
                             onClick={() => rejectTransfer(item.id)}

@@ -11,9 +11,7 @@ export default function DepartmentsPage() {
   const [search, setSearch] = useState('');
 
   const filtered = departments.filter((dept) =>
-    dept.name.toLowerCase().includes(search.toLowerCase()) ||
-    dept.code.toLowerCase().includes(search.toLowerCase()) ||
-    dept.manager.toLowerCase().includes(search.toLowerCase())
+    dept.name.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -40,16 +38,13 @@ export default function DepartmentsPage() {
             <thead>
               <tr className="border-b border-border/50 bg-muted/30 text-muted-foreground uppercase font-bold tracking-widest">
                 <th className="p-4">Department Name</th>
-                <th className="p-4">Code</th>
-                <th className="p-4">Manager</th>
-                <th className="p-4">Employees</th>
-                <th className="p-4 text-right">Annual Budget</th>
+                <th className="p-4">Active Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/40">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-muted-foreground">
+                  <td colSpan={2} className="p-8 text-center text-muted-foreground">
                     No departments found matching your criteria.
                   </td>
                 </tr>
@@ -60,10 +55,9 @@ export default function DepartmentsPage() {
                       <Building2 className="w-4 h-4 text-primary" />
                       {dept.name}
                     </td>
-                    <td className="p-4 font-mono text-muted-foreground">{dept.code}</td>
-                    <td className="p-4 text-foreground font-medium">{dept.manager}</td>
-                    <td className="p-4 text-foreground font-medium">{dept.employeeCount} Staff</td>
-                    <td className="p-4 text-right font-bold text-foreground">{dept.budget}</td>
+                    <td className="p-4 text-muted-foreground font-medium">
+                      {dept.is_active ? 'Active' : 'Inactive'}
+                    </td>
                   </tr>
                 ))
               )}

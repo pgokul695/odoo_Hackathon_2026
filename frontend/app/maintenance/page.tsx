@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useAssetStore, Maintenance } from '@/components/store/AssetStore';
+import { useAssetStore } from '@/components/store/AssetStore';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { 
   User, 
@@ -11,51 +11,35 @@ import {
   X,
   PlusCircle
 } from 'lucide-react';
+import { MaintenanceStatus } from '@/types/api';
 
 export default function MaintenancePage() {
   const { maintenance, assets, createMaintenance, updateMaintenanceStatus } = useAssetStore();
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedAssetId, setSelectedAssetId] = useState('');
-  const [issue, setIssue] = useState('');
-  const [priority, setPriority] = useState<'Low' | 'Medium' | 'High' | 'Critical'>('Medium');
-  const [technician, setTechnician] = useState('Alex Mercer');
 
   const getAssetName = (id: string) => assets.find(a => a.id === id)?.name || 'Unknown';
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedAssetId || !issue) return alert('Select asset and describe issue.');
+    if (!selectedAssetId) return alert('Select asset to raise maintenance ticket.');
     
     createMaintenance({
-      assetId: selectedAssetId,
-      issue,
-      priority,
-      assignedTechnician: technician
+      asset_id: selectedAssetId,
     });
     
     setShowAddForm(false);
-    setIssue('');
   };
 
-  const getPriorityColor = (p: string) => {
-    switch (p) {
-      case 'Critical': return 'bg-destructive/10 text-destructive border-destructive/20';
-      case 'High': return 'bg-orange-500/10 text-orange-500 border-orange-500/20';
-      case 'Medium': return 'bg-warning/10 text-warning border-warning/20';
-      default: return 'bg-muted text-muted-foreground border-border';
-    }
-  };
-
-  const getNextStatus = (curr: Maintenance['status']): Maintenance['status'] | null => {
-    if (curr === 'Requested') return 'Approved';
-    if (curr === 'Approved') return 'In Progress';
-    if (curr === 'In Progress') return 'Completed';
+  const getNextStatus = (curr: MaintenanceStatus): MaintenanceStatus | null => {
+    if (curr === 'REQUESTED') return 'APPROVED';
+    if (curr === 'APPROVED') return 'COMPLETED';
     return null;
   };
 
   // Status Stepper component inside list item
-  const StatusStepper = ({ status }: { status: Maintenance['status'] }) => {
-    const steps: Maintenance['status'][] = ['Requested', 'Approved', 'In Progress', 'Completed'];
+  const StatusStepper = ({ status }: { status: MaintenanceStatus }) => {
+    const steps: MaintenanceStatus[] = ['REQUESTED', 'APPROVED', 'COMPLETED'];
     const activeIndex = steps.indexOf(status);
 
     return (
@@ -82,7 +66,7 @@ export default function MaintenancePage() {
                   {stepName}
                 </span>
               </div>
-              {index < 3 && (
+              {index < 2 && (
                 <div className={`flex-1 h-0.5 mx-1.5 ${index < activeIndex ? 'bg-primary' : 'bg-border/60'}`} />
               )}
             </React.Fragment>
@@ -118,7 +102,7 @@ export default function MaintenancePage() {
         >
           <h3 className="text-xs font-bold text-foreground uppercase tracking-widest pb-1.5 border-b border-border/40">File Maintenance Work Order</h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Select Asset</label>
               <select
@@ -131,43 +115,6 @@ export default function MaintenancePage() {
                 ))}
               </select>
             </div>
-
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Priority Class</label>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as Maintenance['priority'])}
-                className="block w-full px-3 py-2 bg-card border border-border/80 rounded-lg text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="Low">Low</option>
-                <option value="Medium">Medium</option>
-                <option value="High">High</option>
-                <option value="Critical">Critical</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Assigned Technician</label>
-              <input
-                type="text"
-                value={technician}
-                onChange={(e) => setTechnician(e.target.value)}
-                className="block w-full px-3 py-2 bg-card border border-border/80 rounded-lg text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Describe Fault / Diagnostics</label>
-            <textarea
-              rows={2}
-              placeholder="Describe sticky keys, heat generation, display cracks, etc."
-              value={issue}
-              onChange={(e) => setIssue(e.target.value)}
-              className="block w-full px-3 py-2 bg-card border border-border/80 rounded-lg text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
-            />
           </div>
 
           <button
@@ -199,14 +146,13 @@ export default function MaintenancePage() {
                 <div className="space-y-1.5 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-xs font-bold text-primary">{ticket.id}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase leading-none ${getPriorityColor(ticket.priority)}`}>
-                      {ticket.priority} Priority
-                    </span>
-                    <span className="text-[10px] text-muted-foreground font-mono">• Filed: {ticket.createdDate}</span>
+                    <span className="text-[10px] text-muted-foreground font-mono">• Filed: {new Date(ticket.created_at).toLocaleDateString()}</span>
                   </div>
                   
-                  <h4 className="text-xs font-bold text-foreground">{getAssetName(ticket.assetId)} ({ticket.assetId})</h4>
-                  <p className="text-xs text-muted-foreground font-medium leading-relaxed max-w-lg">{ticket.issue}</p>
+                  <h4 className="text-xs font-bold text-foreground">{getAssetName(ticket.asset_id)} ({ticket.asset_id})</h4>
+                  {ticket.resolution_notes && (
+                    <p className="text-xs text-muted-foreground font-medium leading-relaxed max-w-lg">{ticket.resolution_notes}</p>
+                  )}
                   
                   {/* Status Timeline */}
                   <StatusStepper status={ticket.status} />
@@ -216,7 +162,7 @@ export default function MaintenancePage() {
                 <div className="flex flex-col items-end gap-3 flex-shrink-0 pt-4 md:pt-0">
                   <div className="flex items-center space-x-1.5 text-xs text-muted-foreground font-semibold">
                     <User className="w-4 h-4 text-muted-foreground/60" />
-                    <span>Tech: {ticket.assignedTechnician}</span>
+                    <span>Requester ID: {ticket.employee_id}</span>
                   </div>
 
                   {next && (
@@ -228,7 +174,7 @@ export default function MaintenancePage() {
                       <ArrowRight className="w-3 h-3" />
                     </button>
                   )}
-                  {ticket.status === 'Completed' && (
+                  {ticket.status === 'COMPLETED' && (
                     <div className="flex items-center space-x-1 text-success text-[10px] font-bold uppercase tracking-widest leading-none">
                       <Check className="w-4.5 h-4.5" />
                       <span>Ledger Complete</span>

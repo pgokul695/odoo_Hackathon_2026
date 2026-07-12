@@ -18,8 +18,8 @@ export default function DashboardPage() {
 
   const totalAssetsCount = assets.length + 1238; // Mock offset to make total 1248
   const activeAllocatedPercent = 82; // 82%
-  const activeMaintenanceCount = maintenance.filter(m => m.status !== 'Completed').length + 10; // offset
-  const upcomingBookingsCount = bookings.filter(b => b.status === 'Confirmed').length + 22; // offset
+  const activeMaintenanceCount = maintenance.filter(m => m.status !== 'COMPLETED').length + 10; // offset
+  const upcomingBookingsCount = bookings.filter(b => b.status === 'CONFIRMED').length + 22; // offset
 
   return (
     <div className="space-y-6">

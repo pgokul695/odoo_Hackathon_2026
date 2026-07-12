@@ -30,7 +30,7 @@ export default function AllocationsPage() {
 
   // Available assets
   const availableAssets = assets.filter(
-    (a) => a.status === 'Available' && 
+    (a) => a.status === 'AVAILABLE' && 
     (a.name.toLowerCase().includes(assetSearch.toLowerCase()) || a.id.toLowerCase().includes(assetSearch.toLowerCase()))
   );
 

@@ -17,19 +17,13 @@ export default function NotificationsPage() {
     markAllNotificationsRead 
   } = useAssetStore();
 
-  const [activeTab, setActiveTab] = useState<'All' | 'Assets' | 'Maintenance' | 'Bookings' | 'Audits' | 'System'>('All');
-  
-  // Preference states
   const [prefEmail, setPrefEmail] = useState(true);
   const [prefMaintenance, setPrefMaintenance] = useState(true);
   const [prefAudits, setPrefAudits] = useState(false);
 
-  const filtered = notifications.filter(n => {
-    if (activeTab === 'All') return true;
-    return n.category === activeTab;
-  });
+  const filtered = notifications;
 
-  const unreadCount = filtered.filter(n => !n.read).length;
+  const unreadCount = filtered.filter(n => !n.is_read).length;
 
   return (
     <div className="space-y-6">
@@ -51,35 +45,7 @@ export default function NotificationsPage() {
         {/* Left Pane: Categories list & preferences */}
         <div className="space-y-6">
           
-          {/* Category Tabs */}
-          <div className="glass-panel p-4 rounded-xl border border-border/80 shadow-sm space-y-1">
-            <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-2 mb-2">Category Filters</h3>
-            {(['All', 'Assets', 'Maintenance', 'Bookings', 'Audits', 'System'] as const).map((tab) => {
-              const count = notifications.filter(n => {
-                const matchesTab = tab === 'All' || n.category === tab;
-                return matchesTab && !n.read;
-              }).length;
 
-              return (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-xs transition-colors ${
-                    activeTab === tab
-                      ? 'bg-primary/10 text-primary font-bold'
-                      : 'hover:bg-muted/45 text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  <span>{tab}</span>
-                  {count > 0 && (
-                    <span className="px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground text-[8px] font-bold shadow-sm">
-                      {count} New
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
 
           {/* Alert Preferences settings */}
           <div className="glass-panel p-4 rounded-xl border border-border/80 shadow-sm space-y-4">
@@ -134,31 +100,31 @@ export default function NotificationsPage() {
 
           <div className="divide-y divide-border/45">
             {filtered.length === 0 ? (
-              <p className="p-12 text-center text-muted-foreground text-xs font-medium">No alerts filed in category &quot;{activeTab}&quot;.</p>
+              <p className="p-12 text-center text-muted-foreground text-xs font-medium">No alerts filed in category.</p>
             ) : (
               filtered.map((item) => (
                 <div 
                   key={item.id} 
                   className={`p-4 flex items-start justify-between gap-4 transition-colors ${
-                    item.read ? 'hover:bg-muted/10' : 'bg-primary/5 hover:bg-primary/10'
+                    item.is_read ? 'hover:bg-muted/10' : 'bg-primary/5 hover:bg-primary/10'
                   }`}
                 >
                   <div className="flex items-start space-x-3.5">
                     {/* Unread status dot */}
                     <div className="pt-1.5">
-                      <span className={`block w-2 h-2 rounded-full ${item.read ? 'bg-transparent' : 'bg-primary shadow-glow'}`} />
+                      <span className={`block w-2 h-2 rounded-full ${item.is_read ? 'bg-transparent' : 'bg-primary shadow-glow'}`} />
                     </div>
                     <div>
-                      <p className={`text-xs leading-normal ${item.read ? 'text-muted-foreground' : 'text-foreground font-semibold'}`}>
+                      <p className={`text-xs leading-normal ${item.is_read ? 'text-muted-foreground' : 'text-foreground font-semibold'}`}>
                         {item.message}
                       </p>
                       <span className="text-[9px] text-muted-foreground font-mono mt-1 block">
-                        {item.timestamp} • {item.category}
+                        {new Date(item.created_at).toLocaleString()}
                       </span>
                     </div>
                   </div>
 
-                  {!item.read && (
+                  {!item.is_read && (
                     <button
                       onClick={() => markNotificationRead(item.id)}
                       className="p-1 rounded bg-card hover:bg-muted text-muted-foreground hover:text-primary border border-border/60 transition-colors"
