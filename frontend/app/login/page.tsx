@@ -3,21 +3,34 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { apiClient } from '@/components/store/api';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('keerthana.v@assetflow.ai');
   const [password, setPassword] = useState('password123');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const router = useRouter();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Simulate API delay
-    setTimeout(() => {
+    setError('');
+    try {
+      const response = await apiClient.post('/auth/login/', { email, password });
+      
+      if (response.data?.requires_2fa) {
+        // Assume you will build or redirect to 2FA page later
+        router.push(`/login/verify?email=${encodeURIComponent(email)}`);
+      } else if (response.data?.token) {
+        localStorage.setItem('assetflow_jwt', response.data.token);
+        router.push('/dashboard');
+      }
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Login failed');
+    } finally {
       setLoading(false);
-      router.push('/dashboard');
-    }, 800);
+    }
   };
 
   return (
@@ -38,6 +51,13 @@ export default function LoginPage() {
           <h2 className="text-xl font-black text-foreground tracking-tight">Welcome to AssetFlow</h2>
           <p className="text-xs text-muted-foreground">Digital Asset Intelligence Command Center</p>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="bg-destructive/10 border border-destructive/20 text-destructive text-xs p-3 rounded-lg text-center font-medium">
+            {error}
+          </div>
+        )}
 
         {/* Input Form */}
         <form onSubmit={handleSubmit} className="space-y-4">

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { apiClient } from './api';
 
 // Types
 export interface Department {
@@ -89,7 +90,7 @@ export interface Maintenance {
   assetId: string;
   issue: string;
   priority: 'Low' | 'Medium' | 'High' | 'Critical';
-  status: 'Requested' | 'Approved' | 'In Progress' | 'Completed';
+  status: 'Requested' | 'Approved' | 'Rejected' | 'In Progress' | 'Completed';
   assignedTechnician: string;
   createdDate: string;
   cost?: number;
@@ -392,37 +393,48 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
-    const loadData = <T,>(key: string, initial: T, setter: React.Dispatch<React.SetStateAction<T>>) => {
-      const saved = localStorage.getItem(`assetflow_${key}`);
-      if (saved) {
-        try {
-          setter(JSON.parse(saved));
-        } catch (e) {
-          console.error(`Failed to parse localstorage key assetflow_${key}`, e);
-        }
+    const loadData = async () => {
+      try {
+        const [
+          deptRes, empRes, catRes, astRes, 
+          allocRes, transRes, bookRes, maintRes, audRes, notifRes
+        ] = await Promise.all([
+          apiClient.get('/departments/').catch(() => ({ data: [] })),
+          apiClient.get('/employees/').catch(() => ({ data: [] })),
+          apiClient.get('/categories/').catch(() => ({ data: [] })),
+          apiClient.get('/assets/').catch(() => ({ data: [] })),
+          apiClient.get('/allocations/').catch(() => ({ data: [] })),
+          apiClient.get('/transfers/').catch(() => ({ data: [] })),
+          apiClient.get('/bookings/').catch(() => ({ data: [] })),
+          apiClient.get('/maintenance/').catch(() => ({ data: [] })),
+          apiClient.get('/audits/').catch(() => ({ data: [] })),
+          apiClient.get('/notifications/').catch(() => ({ data: [] }))
+        ]);
+        
+        if (deptRes.data) setDepartments(deptRes.data);
+        if (empRes.data) setEmployees(empRes.data);
+        if (catRes.data) setCategories(catRes.data);
+        if (astRes.data) setAssets(astRes.data);
+        if (allocRes.data) setAllocations(allocRes.data);
+        if (transRes.data) setTransfers(transRes.data);
+        if (bookRes.data) setBookings(bookRes.data);
+        if (maintRes.data) setMaintenance(maintRes.data);
+        if (audRes.data) setAudits(audRes.data);
+        if (notifRes.data) setNotifications(notifRes.data);
+      } catch (err) {
+        console.error('Failed to fetch initial data', err);
       }
     };
 
-    loadData('departments', initialDepartments, setDepartments);
-    loadData('employees', initialEmployees, setEmployees);
-    loadData('categories', initialCategories, setCategories);
-    loadData('assets', initialAssets, setAssets);
-    loadData('allocations', initialAllocations, setAllocations);
-    loadData('transfers', initialTransfers, setTransfers);
-    loadData('bookings', initialBookings, setBookings);
-    loadData('maintenance', initialMaintenance, setMaintenance);
-    loadData('audits', initialAudits, setAudits);
-    loadData('notifications', initialNotifications, setNotifications);
+    loadData();
   }, []);
 
   // Save to local storage helper
-  const saveData = (key: string, data: unknown) => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(`assetflow_${key}`, JSON.stringify(data));
-    }
-  };
+  const saveData = (_key: string, _data: unknown) => {};
 
   const addAsset = (newAsset: Omit<Asset, 'id' | 'history'>) => {
+    apiClient.post('/assets/', newAsset).catch(console.error);
+    
     const nextId = `AST-${String(assets.length + 1).padStart(3, '0')}`;
     const assetWithId: Asset = {
       ...newAsset,
@@ -457,6 +469,8 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
   };
 
   const updateAsset = (id: string, updates: Partial<Asset>) => {
+    apiClient.put(`/assets/${id}`, updates).catch(console.error);
+    
     const updated = assets.map(asset => {
       if (asset.id === id) {
         const history = [...asset.history];
@@ -476,6 +490,8 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
   };
 
   const allocateAsset = (assetId: string, employeeId: string, notes?: string) => {
+    apiClient.post('/allocations/', { asset_id: assetId, employee_id: employeeId, notes }).catch(console.error);
+    
     const today = new Date().toISOString().split('T')[0];
     
     // Create allocation
@@ -543,6 +559,8 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
   };
 
   const createTransfer = (assetId: string, toDeptId: string, requestedBy: string) => {
+    apiClient.post('/transfers/', { asset_id: assetId, to_department_id: toDeptId }).catch(console.error);
+    
     const today = new Date().toISOString().split('T')[0];
     const targetAsset = assets.find(a => a.id === assetId);
     if (!targetAsset) return;
@@ -583,6 +601,8 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
   };
 
   const approveTransfer = (transferId: string) => {
+    apiClient.put(`/transfers/${transferId}/approve/`).catch(console.error);
+    
     const today = new Date().toISOString().split('T')[0];
     const transfer = transfers.find(t => t.id === transferId);
     if (!transfer) return;
@@ -649,6 +669,8 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
   };
 
   const rejectTransfer = (transferId: string) => {
+    apiClient.put(`/transfers/${transferId}/reject/`).catch(console.error);
+    
     const today = new Date().toISOString().split('T')[0];
     const transfer = transfers.find(t => t.id === transferId);
     if (!transfer) return;
@@ -683,6 +705,8 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
   };
 
   const createBooking = (booking: Omit<Booking, 'id' | 'status'>) => {
+    apiClient.post('/bookings/', { asset_id: booking.assetId, start_time: booking.startDate, end_time: booking.endDate }).catch(console.error);
+    
     const today = new Date().toISOString().split('T')[0];
     
     // Check conflicts
@@ -736,6 +760,8 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
   };
 
   const createMaintenance = (mt: Omit<Maintenance, 'id' | 'status' | 'createdDate'>) => {
+    apiClient.post('/maintenance/', { asset_id: mt.assetId }).catch(console.error);
+    
     const today = new Date().toISOString().split('T')[0];
     const newId = `MR-${String(maintenance.length + 12).padStart(3, '0')}`;
     const newMt: Maintenance = {
@@ -771,6 +797,8 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
   };
 
   const updateMaintenanceStatus = (id: string, status: Maintenance['status']) => {
+    if(status === 'Approved') apiClient.put(`/maintenance/${id}/approve/`).catch(console.error); else if(status === 'Rejected') apiClient.put(`/maintenance/${id}/reject/`).catch(console.error); else if(status === 'Completed') apiClient.put(`/maintenance/${id}/complete/`, { resolution_notes: '' }).catch(console.error);
+    
     const today = new Date().toISOString().split('T')[0];
     const ticket = maintenance.find(m => m.id === id);
     if (!ticket) return;
@@ -812,6 +840,8 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
   };
 
   const submitAudit = (assetId: string, auditor: string, status: Audit['status'], notes?: string) => {
+    apiClient.post(`/audits/${audits.length ? audits[0].id : 1}/results/`, { asset_id: assetId, result: status, notes }).catch(console.error);
+    
     const today = new Date().toISOString().split('T')[0];
     const newAudit: Audit = {
       id: `au-${audits.length + 1}`,
