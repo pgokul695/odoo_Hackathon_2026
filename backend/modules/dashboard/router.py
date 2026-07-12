@@ -1,11 +1,10 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from core.response import StandardResponse
-from core.config import settings
+from core.dependencies import require_verified_and_assigned, require_role
+from shared.enums import Role
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_verified_and_assigned())])
 
-@router.get("/", response_model=StandardResponse)
-async def get_dashboard_metrics():
-    if settings.USE_MOCK_DATA:
-        return StandardResponse(data={"total_assets": 120, "active_allocations": 45, "pending_maintenance": 3})
-    return StandardResponse(data={})
+@router.get("/", response_model=StandardResponse, dependencies=[Depends(require_role(Role.Admin))])
+async def get_dashboard():
+    return StandardResponse(data={"total_assets": 120, "active_allocations": 85, "pending_maintenance": 3})

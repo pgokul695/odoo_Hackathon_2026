@@ -47,6 +47,7 @@ class Department(Base):
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True)
     
     users = relationship("User", back_populates="department")
 
@@ -62,3 +63,105 @@ class ActivityLog(Base):
     
     user = relationship("User", back_populates="activity_logs")
 
+class Category(Base):
+    __tablename__ = "categories"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True)
+
+class Asset(Base):
+    __tablename__ = "assets"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String, nullable=False)
+    department_id = Column(UUID(as_uuid=True), ForeignKey('departments.id'), nullable=True)
+    status = Column(String, default="Available")
+    is_active = Column(Boolean, default=True)
+
+class Allocation(Base):
+    __tablename__ = "allocations"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    asset_id = Column(UUID(as_uuid=True), ForeignKey('assets.id'), nullable=False)
+    employee_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
+    
+    asset = relationship("Asset")
+    employee = relationship("User")
+
+class Booking(Base):
+    __tablename__ = "bookings"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    resource_name = Column(String, nullable=False)
+    department_id = Column(UUID(as_uuid=True), ForeignKey('departments.id'), nullable=True)
+    employee_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
+
+class MaintenanceRequest(Base):
+    __tablename__ = "maintenance_requests"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    asset_id = Column(UUID(as_uuid=True), ForeignKey('assets.id'), nullable=False)
+    employee_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
+    department_id = Column(UUID(as_uuid=True), ForeignKey('departments.id'), nullable=True)
+    status = Column(String, default="PENDING") # PENDING, APPROVED, REJECTED, COMPLETED
+    resolution_notes = Column(String, nullable=True)
+    
+    asset = relationship("Asset")
+
+class Audit(Base):
+    __tablename__ = "audits"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String, nullable=False)
+    status = Column(String, default="OPEN") # OPEN, CLOSED
+
+class Report(Base):
+    __tablename__ = "reports"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title = Column(String, nullable=False)
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
+    message = Column(String, nullable=False)
+    is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class Transfer(Base):
+    __tablename__ = "transfers"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    asset_id = Column(UUID(as_uuid=True), ForeignKey('assets.id'), nullable=False)
+    from_department_id = Column(UUID(as_uuid=True), ForeignKey('departments.id'), nullable=True)
+    to_department_id = Column(UUID(as_uuid=True), ForeignKey('departments.id'), nullable=True)
+    status = Column(String, default="PENDING") # PENDING, APPROVED, REJECTED
+    requested_at = Column(DateTime, default=datetime.utcnow)
+    resolved_at = Column(DateTime, nullable=True)
+    
+    asset = relationship("Asset")
+
+class MaintenanceLog(Base):
+    __tablename__ = "maintenance_logs"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    request_id = Column(UUID(as_uuid=True), ForeignKey('maintenance_requests.id'), nullable=False)
+    action = Column(String, nullable=False)
+    notes = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class AuditResult(Base):
+    __tablename__ = "audit_results"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    audit_id = Column(UUID(as_uuid=True), ForeignKey('audits.id'), nullable=False)
+    asset_id = Column(UUID(as_uuid=True), ForeignKey('assets.id'), nullable=False)
+    result = Column(String, nullable=False) # FOUND, MISSING, DAMAGED
+    notes = Column(String, nullable=True)
+    recorded_at = Column(DateTime, default=datetime.utcnow)
+
+class NotificationPreference(Base):
+    __tablename__ = "notification_preferences"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False, unique=True)
+    email_enabled = Column(Boolean, default=True)
+    push_enabled = Column(Boolean, default=True)
+
+class OrganizationSettings(Base):
+    __tablename__ = "organization_settings"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String, default="AssetFlow")
+    logo_url = Column(String, nullable=True)
+    timezone = Column(String, default="UTC")

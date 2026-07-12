@@ -14,19 +14,27 @@ from modules.audits.router import router as audits_router
 from modules.reports.router import router as reports_router
 from modules.notifications.router import router as notifications_router
 from modules.auth.router import router as auth_router
+from modules.transfers.router import router as transfers_router
+from modules.activity_logs.router import router as activity_logs_router
+from modules.settings.router import router as settings_router
 
-from core.database import engine, Base
+from core.database import engine, Base, SessionLocal
 from core.exceptions import AppException
 from core.response import ErrorResponse
 from fastapi.responses import JSONResponse
 from fastapi import Request
+from core.seed import seed_test_data
+
 
 
 # Create database tables for hackathon scope
 try:
     Base.metadata.create_all(bind=engine)
+    with SessionLocal() as db:
+        seed_test_data(db)
 except Exception as e:
     print(f"Warning: Could not initialize database tables: {e}")
+
 
 
 app = FastAPI(title=settings.PROJECT_NAME)
@@ -58,9 +66,12 @@ app.include_router(allocations_router, prefix=f"{settings.API_V1_STR}/allocation
 app.include_router(bookings_router, prefix=f"{settings.API_V1_STR}/bookings", tags=["bookings"])
 app.include_router(maintenance_router, prefix=f"{settings.API_V1_STR}/maintenance", tags=["maintenance"])
 app.include_router(audits_router, prefix=f"{settings.API_V1_STR}/audits", tags=["audits"])
-app.include_router(reports_router, prefix=f"{settings.API_V1_STR}/reports", tags=["reports"])
-app.include_router(notifications_router, prefix=f"{settings.API_V1_STR}/notifications", tags=["notifications"])
-app.include_router(auth_router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
+app.include_router(reports_router, prefix="/api/reports", tags=["Reports"])
+app.include_router(notifications_router, prefix="/api/notifications", tags=["Notifications"])
+app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
+app.include_router(transfers_router, prefix="/api/transfers", tags=["Transfers"])
+app.include_router(activity_logs_router, prefix="/api/activity-logs", tags=["Activity Logs"])
+app.include_router(settings_router, prefix="/api/settings", tags=["Settings"])
 
 if __name__ == "__main__":
     import uvicorn
