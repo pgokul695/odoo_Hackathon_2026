@@ -92,3 +92,8 @@ bun.lockb
 
 # Vercel
 .vercel
+
+#protopost
+config.json
+emails.db
+init_config.json

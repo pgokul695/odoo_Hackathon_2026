@@ -13,6 +13,16 @@ from modules.maintenance.router import router as maintenance_router
 from modules.audits.router import router as audits_router
 from modules.reports.router import router as reports_router
 from modules.notifications.router import router as notifications_router
+from modules.auth.router import router as auth_router
+
+from core.database import engine, Base
+
+# Create database tables for hackathon scope
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as e:
+    print(f"Warning: Could not initialize database tables: {e}")
+
 
 app = FastAPI(title=settings.PROJECT_NAME)
 
@@ -37,6 +47,7 @@ app.include_router(maintenance_router, prefix=f"{settings.API_V1_STR}/maintenanc
 app.include_router(audits_router, prefix=f"{settings.API_V1_STR}/audits", tags=["audits"])
 app.include_router(reports_router, prefix=f"{settings.API_V1_STR}/reports", tags=["reports"])
 app.include_router(notifications_router, prefix=f"{settings.API_V1_STR}/notifications", tags=["notifications"])
+app.include_router(auth_router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
 
 if __name__ == "__main__":
     import uvicorn
