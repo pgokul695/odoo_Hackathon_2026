@@ -9,8 +9,14 @@ from core.utils import log_activity
 from shared.enums import Role
 from shared.models import Allocation, Asset, User
 from pydantic import BaseModel
+from modules.assets.services import AssetStateService
+from uuid import UUID
+from datetime import datetime
 
 router = APIRouter(dependencies=[Depends(require_verified_and_assigned())])
+
+class AllocationCreate(BaseModel):
+    asset_id: UUID
 
 class ReturnRequest(BaseModel):
     condition_notes: str
@@ -33,8 +39,31 @@ async def list_allocations(
     return StandardResponse(data=data)
 
 @router.post("/", response_model=StandardResponse, dependencies=[Depends(require_role(Role.AssetManager, Role.Admin))])
-async def create_allocation():
-    return StandardResponse(data={"id": "new-allocation-id"}, message="Allocation created placeholder")
+async def create_allocation(
+    req: AllocationCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    asset = db.query(Asset).filter(Asset.id == req.asset_id).first()
+    if not asset:
+        raise AppException(status_code=404, message="Asset not found")
+        
+    if asset.status != "AVAILABLE":
+        raise AppException(status_code=409, message="Asset is not available for allocation")
+        
+    alloc = Allocation(
+        asset_id=asset.id,
+        employee_id=current_user.id,
+        status="ACTIVE",
+        allocated_at=datetime.utcnow()
+    )
+    db.add(alloc)
+    
+    AssetStateService.transition(asset, "ALLOCATED", db, current_user.id)
+    
+    db.commit()
+    log_activity(db, "allocations", "created", f"Allocated asset {asset.id} to user {current_user.id}", current_user.id)
+    return StandardResponse(message="Allocation created", data={"id": str(alloc.id)})
 
 @router.put("/{id}/return/", response_model=StandardResponse, dependencies=[Depends(require_role(Role.AssetManager, Role.Admin))])
 async def return_allocation(
@@ -47,7 +76,19 @@ async def return_allocation(
     if not alloc:
         raise AppException(status_code=404, message="Allocation not found")
         
-    db.delete(alloc) # Or mark returned, but spec doesn't have a status field for allocations
+    if alloc.status != "ACTIVE":
+        raise AppException(status_code=409, message="Allocation is already returned")
+        
+    asset = db.query(Asset).filter(Asset.id == alloc.asset_id).first()
+    if not asset:
+        raise AppException(status_code=404, message="Asset not found")
+
+    alloc.status = "RETURNED"
+    alloc.returned_at = datetime.utcnow()
+    alloc.condition_notes = req.condition_notes
     
+    AssetStateService.transition(asset, "AVAILABLE", db, current_user.id)
+    
+    db.commit()
     log_activity(db, "allocations", "returned", f"Returned allocation {id}. Notes: {req.condition_notes}", current_user.id)
     return StandardResponse(message="Asset returned successfully")

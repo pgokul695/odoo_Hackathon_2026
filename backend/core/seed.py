@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from shared.models import User, Department, Asset, Allocation, Booking, MaintenanceRequest, Audit, Report, Notification, Category
 from shared.enums import Role
 from core.security import get_password_hash
-from datetime import datetime
+from datetime import datetime, timedelta
 
 def seed_test_data(db: Session):
     # Check if we already seeded by checking departments
@@ -52,8 +52,8 @@ def seed_test_data(db: Session):
     db.commit()
 
     # 5. Bookings
-    db.add(Booking(resource_name="Projector Room", department_id=dept_it.id, employee_id=head_it.id))
-    db.add(Booking(resource_name="Conference A", department_id=dept_hr.id, employee_id=emp_hr.id))
+    db.add(Booking(asset_id=asset1.id, employee_id=head_it.id, start_time=datetime.utcnow() + timedelta(days=1), end_time=datetime.utcnow() + timedelta(days=1, hours=2), status="CONFIRMED"))
+    db.add(Booking(asset_id=asset3.id, employee_id=emp_hr.id, start_time=datetime.utcnow() + timedelta(days=2), end_time=datetime.utcnow() + timedelta(days=2, hours=3), status="CONFIRMED"))
     db.commit()
 
     # 6. Maintenance

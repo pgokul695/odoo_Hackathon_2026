@@ -74,7 +74,7 @@ class Asset(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False)
     department_id = Column(UUID(as_uuid=True), ForeignKey('departments.id'), nullable=True)
-    status = Column(String, default="Available")
+    status = Column(String, default="AVAILABLE")
     is_active = Column(Boolean, default=True)
 
 class Allocation(Base):
@@ -82,6 +82,10 @@ class Allocation(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     asset_id = Column(UUID(as_uuid=True), ForeignKey('assets.id'), nullable=False)
     employee_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
+    status = Column(String, default="ACTIVE")
+    allocated_at = Column(DateTime, default=datetime.utcnow)
+    returned_at = Column(DateTime, nullable=True)
+    condition_notes = Column(String, nullable=True)
     
     asset = relationship("Asset")
     employee = relationship("User")
@@ -89,9 +93,13 @@ class Allocation(Base):
 class Booking(Base):
     __tablename__ = "bookings"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    resource_name = Column(String, nullable=False)
-    department_id = Column(UUID(as_uuid=True), ForeignKey('departments.id'), nullable=True)
+    asset_id = Column(UUID(as_uuid=True), ForeignKey('assets.id'), nullable=False)
     employee_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
+    start_time = Column(DateTime, nullable=False)
+    end_time = Column(DateTime, nullable=False)
+    status = Column(String, default="CONFIRMED") # CONFIRMED, CANCELLED
+    
+    asset = relationship("Asset")
 
 class MaintenanceRequest(Base):
     __tablename__ = "maintenance_requests"
@@ -99,7 +107,7 @@ class MaintenanceRequest(Base):
     asset_id = Column(UUID(as_uuid=True), ForeignKey('assets.id'), nullable=False)
     employee_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
     department_id = Column(UUID(as_uuid=True), ForeignKey('departments.id'), nullable=True)
-    status = Column(String, default="PENDING") # PENDING, APPROVED, REJECTED, COMPLETED
+    status = Column(String, default="REQUESTED") # REQUESTED, APPROVED, REJECTED, COMPLETED
     resolution_notes = Column(String, nullable=True)
     
     asset = relationship("Asset")
@@ -127,6 +135,7 @@ class Transfer(Base):
     __tablename__ = "transfers"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     asset_id = Column(UUID(as_uuid=True), ForeignKey('assets.id'), nullable=False)
+    requested_by_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
     from_department_id = Column(UUID(as_uuid=True), ForeignKey('departments.id'), nullable=True)
     to_department_id = Column(UUID(as_uuid=True), ForeignKey('departments.id'), nullable=True)
     status = Column(String, default="PENDING") # PENDING, APPROVED, REJECTED
@@ -134,6 +143,7 @@ class Transfer(Base):
     resolved_at = Column(DateTime, nullable=True)
     
     asset = relationship("Asset")
+    requested_by = relationship("User")
 
 class MaintenanceLog(Base):
     __tablename__ = "maintenance_logs"

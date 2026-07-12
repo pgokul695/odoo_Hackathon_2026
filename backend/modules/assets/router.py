@@ -11,6 +11,7 @@ from shared.models import Asset, Allocation, MaintenanceRequest, User
 from pydantic import BaseModel
 from typing import Optional
 from uuid import UUID
+from modules.assets.services import AssetStateService
 
 router = APIRouter(dependencies=[Depends(require_verified_and_assigned())])
 
@@ -77,9 +78,10 @@ async def update_asset(
     if req.department_id is not None:
         asset.department_id = req.department_id
     if req.status is not None:
-        asset.status = req.status
+        AssetStateService.transition(asset, req.status, db, current_user.id)
         
     log_activity(db, "assets", "updated", f"Updated asset {id}", current_user.id)
+    db.commit()
     return StandardResponse(message="Asset updated")
 
 @router.delete("/{id}", response_model=StandardResponse, dependencies=[Depends(require_role(Role.AssetManager, Role.Admin))])
@@ -93,8 +95,9 @@ async def delete_asset(
         raise AppException(status_code=404, message="Asset not found")
         
     asset.is_active = False
-    asset.status = "Retired"
+    AssetStateService.transition(asset, "RETIRED", db, current_user.id)
     
+    db.commit()
     log_activity(db, "assets", "retired", f"Retired asset {id}", current_user.id)
     return StandardResponse(message="Asset retired")
 
