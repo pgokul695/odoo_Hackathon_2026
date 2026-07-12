@@ -98,6 +98,7 @@ class Booking(Base):
     start_time = Column(DateTime, nullable=False)
     end_time = Column(DateTime, nullable=False)
     status = Column(String, default="CONFIRMED") # CONFIRMED, CANCELLED
+    created_at = Column(DateTime, default=datetime.utcnow)
     
     asset = relationship("Asset")
 
@@ -109,6 +110,7 @@ class MaintenanceRequest(Base):
     department_id = Column(UUID(as_uuid=True), ForeignKey('departments.id'), nullable=True)
     status = Column(String, default="REQUESTED") # REQUESTED, APPROVED, REJECTED, COMPLETED
     resolution_notes = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
     
     asset = relationship("Asset")
 
@@ -117,6 +119,7 @@ class Audit(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False)
     status = Column(String, default="OPEN") # OPEN, CLOSED
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 class Report(Base):
     __tablename__ = "reports"

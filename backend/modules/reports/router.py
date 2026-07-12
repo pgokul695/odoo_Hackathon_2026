@@ -90,8 +90,8 @@ async def generate_report(
         
     elif req.report_type == "TRANSFER_HISTORY":
         q = db.query(Transfer)
-        if date_from: q = q.filter(Transfer.created_at >= date_from)
-        if date_to: q = q.filter(Transfer.created_at <= date_to)
+        if date_from: q = q.filter(Transfer.requested_at >= date_from)
+        if date_to: q = q.filter(Transfer.requested_at <= date_to)
         if "department_id" in f: q = q.filter((Transfer.from_department_id == f["department_id"]) | (Transfer.to_department_id == f["department_id"]))
         transfers = q.all()
         result_data = [{"asset_id": str(t.asset_id), "from_department_id": str(t.from_department_id) if t.from_department_id else None, "to_department_id": str(t.to_department_id) if t.to_department_id else None, "status": t.status} for t in transfers]
