@@ -1,0 +1,43 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from core.config import settings
+
+from modules.dashboard.router import router as dashboard_router
+from modules.assets.router import router as assets_router
+from modules.categories.router import router as categories_router
+from modules.departments.router import router as departments_router
+from modules.employees.router import router as employees_router
+from modules.allocations.router import router as allocations_router
+from modules.bookings.router import router as bookings_router
+from modules.maintenance.router import router as maintenance_router
+from modules.audits.router import router as audits_router
+from modules.reports.router import router as reports_router
+from modules.notifications.router import router as notifications_router
+
+app = FastAPI(title=settings.PROJECT_NAME)
+
+# CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # For dev only, should be restricted in prod
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Register routers
+app.include_router(dashboard_router, prefix=f"{settings.API_V1_STR}/dashboard", tags=["dashboard"])
+app.include_router(assets_router, prefix=f"{settings.API_V1_STR}/assets", tags=["assets"])
+app.include_router(categories_router, prefix=f"{settings.API_V1_STR}/categories", tags=["categories"])
+app.include_router(departments_router, prefix=f"{settings.API_V1_STR}/departments", tags=["departments"])
+app.include_router(employees_router, prefix=f"{settings.API_V1_STR}/employees", tags=["employees"])
+app.include_router(allocations_router, prefix=f"{settings.API_V1_STR}/allocations", tags=["allocations"])
+app.include_router(bookings_router, prefix=f"{settings.API_V1_STR}/bookings", tags=["bookings"])
+app.include_router(maintenance_router, prefix=f"{settings.API_V1_STR}/maintenance", tags=["maintenance"])
+app.include_router(audits_router, prefix=f"{settings.API_V1_STR}/audits", tags=["audits"])
+app.include_router(reports_router, prefix=f"{settings.API_V1_STR}/reports", tags=["reports"])
+app.include_router(notifications_router, prefix=f"{settings.API_V1_STR}/notifications", tags=["notifications"])
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
