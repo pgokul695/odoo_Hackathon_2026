@@ -24,6 +24,7 @@ export default function LoginPage() {
         router.push(`/login/verify?email=${encodeURIComponent(email)}`);
       } else if (response.data?.token) {
         localStorage.setItem('assetflow_jwt', response.data.token);
+        document.cookie = `assetflow_jwt=${response.data.token}; path=/; max-age=86400; SameSite=Lax`;
         router.push('/dashboard');
       }
     } catch (err: unknown) {

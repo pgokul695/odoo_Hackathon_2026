@@ -24,7 +24,7 @@ export default function BookingsPage() {
 
   const getAssetName = (id: string) => assets.find(a => a.id === id)?.name || 'Unknown';
 
-  const handleBookingSubmit = (e: React.FormEvent) => {
+  const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBookingError(null);
 
@@ -36,7 +36,7 @@ export default function BookingsPage() {
     const startISO = new Date(startDate).toISOString().slice(0, 16);
     const endISO = new Date(endDate).toISOString().slice(0, 16);
 
-    const result = createBooking({
+    const result = await createBooking({
       asset_id: assetId,
       employee_id: 'u-1',
       start_time: startISO,

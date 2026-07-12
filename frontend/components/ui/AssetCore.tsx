@@ -21,7 +21,7 @@ const nodes: OrbitNode[] = [
   { id: 'n-veh', name: 'Vehicles', count: 12, allocated: '100%', icon: Car, angleOffset: (8 * Math.PI) / 5 },
 ];
 
-export function AssetCore() {
+export function AssetCore({ nodesData }: { nodesData?: { id: string, name: string, count: number, allocated: string }[] }) {
   const [mounted, setMounted] = useState(false);
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const requestRef = useRef<number>(0);
@@ -54,7 +54,13 @@ export function AssetCore() {
       const speed = hoveredNode ? 0.00003 : 0.00018;
       angleRef.current = (angleRef.current + speed * delta) % (2 * Math.PI);
 
-      nodes.forEach((node) => {
+      const currentNodes = nodesData ? nodesData.map((n, i) => ({
+        ...n,
+        icon: Server, // Default icon since we are showing departments
+        angleOffset: (i * 2 * Math.PI) / Math.max(1, nodesData.length)
+      })) : nodes;
+
+      currentNodes.forEach((node) => {
         const el = nodeRefs.current[node.id];
         if (!el) return;
         const angle = angleRef.current + node.angleOffset;
@@ -77,7 +83,7 @@ export function AssetCore() {
 
     requestRef.current = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(requestRef.current);
-  }, [hoveredNode]);
+  }, [hoveredNode, nodesData]);
 
   return (
     <div className="glass-panel relative rounded-xl p-6 flex flex-col items-center justify-center min-h-[420px] overflow-hidden border border-border/80 shadow-sm">
@@ -130,7 +136,11 @@ export function AssetCore() {
         </div>
 
         {/* Orbiting Node items */}
-        {nodes.map((node) => {
+        {(nodesData ? nodesData.map((n, i) => ({
+          ...n,
+          icon: Server,
+          angleOffset: (i * 2 * Math.PI) / Math.max(1, nodesData.length)
+        })) : nodes).map((node) => {
           const angle = angleRef.current + node.angleOffset;
           const x = rx * Math.cos(angle);
           const z = Math.sin(angle); // depth range -1 to 1

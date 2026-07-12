@@ -12,14 +12,41 @@ import {
   Wrench, 
   Calendar 
 } from 'lucide-react';
+import { api } from '@/lib/api';
+import React, { useEffect, useState } from 'react';
 
 export default function DashboardPage() {
-  const { assets, maintenance, bookings } = useAssetStore();
+  const { departments } = useAssetStore();
 
-  const totalAssetsCount = assets.length + 1238; // Mock offset to make total 1248
-  const activeAllocatedPercent = 82; // 82%
-  const activeMaintenanceCount = maintenance.filter(m => m.status !== 'COMPLETED').length + 10; // offset
-  const upcomingBookingsCount = bookings.filter(b => b.status === 'CONFIRMED').length + 22; // offset
+  const [dashboardData, setDashboardData] = useState<unknown>(null);
+
+  useEffect(() => {
+    api.get('/dashboard/').then(res => {
+      if (res.data) setDashboardData(res.data);
+    }).catch(console.error);
+  }, []);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dashData = dashboardData as any;
+  const totalAssetsCount = dashData?.assets_by_status?.total || 0;
+  const activeAllocatedPercent = totalAssetsCount > 0 
+    ? Math.round(((dashData?.active_allocations || 0) / totalAssetsCount) * 100) 
+    : 0;
+  const activeMaintenanceCount = dashData?.open_maintenance_requests || 0;
+  const upcomingBookingsCount = dashData?.upcoming_bookings || 0;
+
+  let nodesData = undefined;
+  if (dashData?.assets_by_department) {
+    nodesData = Object.entries(dashData.assets_by_department).map(([deptId, count]) => {
+      const dept = departments.find(d => d.id === deptId);
+      return {
+        id: deptId,
+        name: dept ? dept.name : (deptId === 'unassigned' ? 'Unassigned' : 'Unknown'),
+        count: count as number,
+        allocated: 'N/A'
+      };
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -91,7 +118,7 @@ export default function DashboardPage() {
         
         {/* Left Side: Topology */}
         <div className="lg:col-span-2">
-          <AssetCore />
+          <AssetCore nodesData={nodesData} />
         </div>
 
         {/* Right Side: Charts stacked */}
