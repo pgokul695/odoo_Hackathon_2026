@@ -1,0 +1,1 @@
+import{r as e,ak as s,al as u,am as c}from"./index-TQprzHkU.js";function m(r){const t=e.useRef(0),{isStatic:i}=e.useContext(s);e.useEffect(()=>{if(i)return;const n=({timestamp:a,delta:o})=>{t.current||(t.current=a),r(a-t.current,o)};return u.update(n,!0),()=>c(n)},[r])}export{m as u};
