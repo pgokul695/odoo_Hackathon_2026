@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     PROJECT_NAME: str = "AssetFlow ERP"
     API_V1_STR: str = "/api"
-    USE_MOCK_DATA: bool = True
+    USE_MOCK_DATA: bool = False
     
     # Database
     POSTGRES_SERVER: str = "localhost"

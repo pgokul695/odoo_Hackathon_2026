@@ -8,15 +8,25 @@ export default function LoginPage() {
   const [email, setEmail] = useState('keerthana.v@assetflow.ai');
   const [password, setPassword] = useState('password123');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Simulate API delay
+    setError(null);
+
+    // Validate credentials
     setTimeout(() => {
-      setLoading(false);
-      router.push('/dashboard');
+      if (email.trim() === 'keerthana.v@assetflow.ai' && password === 'password123') {
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('currentUserEmail', email.trim());
+        setLoading(false);
+        router.push('/dashboard');
+      } else {
+        setLoading(false);
+        setError('Invalid security credentials. Check your email or password.');
+      }
     }, 800);
   };
 
@@ -38,6 +48,12 @@ export default function LoginPage() {
           <h2 className="text-xl font-black text-foreground tracking-tight">Welcome to AssetFlow</h2>
           <p className="text-xs text-muted-foreground">Digital Asset Intelligence Command Center</p>
         </div>
+
+        {error && (
+          <div className="bg-destructive/10 border border-destructive/20 text-destructive text-xs font-semibold px-3.5 py-2.5 rounded-lg text-center leading-normal">
+            {error}
+          </div>
+        )}
 
         {/* Input Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -83,7 +99,7 @@ export default function LoginPage() {
         <div className="text-center text-xs text-muted-foreground pt-2">
           New deployment?{' '}
           <Link href="/signup" className="text-primary font-bold hover:underline">
-            Register administrator
+            Register
           </Link>
         </div>
       </div>

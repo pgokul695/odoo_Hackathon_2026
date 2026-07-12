@@ -2,6 +2,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from core.config import settings
 
+from core.db import Base, engine, SessionLocal
+from core.seed import seed_db
+
 from modules.dashboard.router import router as dashboard_router
 from modules.assets.router import router as assets_router
 from modules.categories.router import router as categories_router
@@ -13,6 +16,17 @@ from modules.maintenance.router import router as maintenance_router
 from modules.audits.router import router as audits_router
 from modules.reports.router import router as reports_router
 from modules.notifications.router import router as notifications_router
+from modules.transfers.router import router as transfers_router
+
+# Initialize database tables
+Base.metadata.create_all(bind=engine)
+
+# Seed database
+db = SessionLocal()
+try:
+    seed_db(db)
+finally:
+    db.close()
 
 app = FastAPI(title=settings.PROJECT_NAME)
 
@@ -32,6 +46,7 @@ app.include_router(categories_router, prefix=f"{settings.API_V1_STR}/categories"
 app.include_router(departments_router, prefix=f"{settings.API_V1_STR}/departments", tags=["departments"])
 app.include_router(employees_router, prefix=f"{settings.API_V1_STR}/employees", tags=["employees"])
 app.include_router(allocations_router, prefix=f"{settings.API_V1_STR}/allocations", tags=["allocations"])
+app.include_router(transfers_router, prefix=f"{settings.API_V1_STR}/transfers", tags=["transfers"])
 app.include_router(bookings_router, prefix=f"{settings.API_V1_STR}/bookings", tags=["bookings"])
 app.include_router(maintenance_router, prefix=f"{settings.API_V1_STR}/maintenance", tags=["maintenance"])
 app.include_router(audits_router, prefix=f"{settings.API_V1_STR}/audits", tags=["audits"])

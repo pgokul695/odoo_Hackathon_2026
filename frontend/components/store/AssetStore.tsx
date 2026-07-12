@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { request } from '../../lib/api';
 
 // Types
 export interface Department {
@@ -388,31 +389,135 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
   const [audits, setAudits] = useState<Audit[]>(initialAudits);
   const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
 
-  // Load from local storage
+  // Load from local storage and sync with backend
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
-    const loadData = <T,>(key: string, initial: T, setter: React.Dispatch<React.SetStateAction<T>>) => {
-      const saved = localStorage.getItem(`assetflow_${key}`);
-      if (saved) {
-        try {
-          setter(JSON.parse(saved));
-        } catch (e) {
-          console.error(`Failed to parse localstorage key assetflow_${key}`, e);
+    const loadFromLocalStorage = () => {
+      const loadData = <T,>(key: string, initial: T, setter: React.Dispatch<React.SetStateAction<T>>) => {
+        const saved = localStorage.getItem(`assetflow_${key}`);
+        if (saved) {
+          try {
+            setter(JSON.parse(saved));
+          } catch (e) {
+            console.error(`Failed to parse localstorage key assetflow_${key}`, e);
+          }
         }
+      };
+
+      loadData('departments', initialDepartments, setDepartments);
+      loadData('employees', initialEmployees, setEmployees);
+      loadData('categories', initialCategories, setCategories);
+      loadData('assets', initialAssets, setAssets);
+      loadData('allocations', initialAllocations, setAllocations);
+      loadData('transfers', initialTransfers, setTransfers);
+      loadData('bookings', initialBookings, setBookings);
+      loadData('maintenance', initialMaintenance, setMaintenance);
+      loadData('audits', initialAudits, setAudits);
+      loadData('notifications', initialNotifications, setNotifications);
+    };
+
+    // First load from localStorage to ensure instant render with demo data
+    loadFromLocalStorage();
+
+    // Then try to fetch fresh data from backend
+    const syncWithBackend = async () => {
+      try {
+        const [
+          backendDepts,
+          backendEmployees,
+          backendCategories,
+          backendAssets,
+          backendAllocations,
+          backendTransfers,
+          backendBookings,
+          backendMaintenance,
+          backendAudits,
+          backendNotifications
+        ] = await Promise.allSettled([
+          request('GET', '/departments/'),
+          request('GET', '/employees/'),
+          request('GET', '/categories/'),
+          request('GET', '/assets/'),
+          request('GET', '/allocations/'),
+          request('GET', '/transfers/'),
+          request('GET', '/bookings/'),
+          request('GET', '/maintenance/'),
+          request('GET', '/audits/'),
+          request('GET', '/notifications/')
+        ]);
+
+        if (backendDepts.status === 'fulfilled' && Array.isArray(backendDepts.value) && backendDepts.value.length > 0) {
+          setDepartments(backendDepts.value);
+        }
+        if (backendEmployees.status === 'fulfilled' && Array.isArray(backendEmployees.value) && backendEmployees.value.length > 0) {
+          setEmployees(backendEmployees.value);
+        }
+        if (backendCategories.status === 'fulfilled' && Array.isArray(backendCategories.value) && backendCategories.value.length > 0) {
+          setCategories(backendCategories.value);
+        }
+        if (backendAssets.status === 'fulfilled' && Array.isArray(backendAssets.value) && backendAssets.value.length > 0) {
+          // Merge/Map to avoid crashes on missing mock fields
+          interface BackendAsset {
+            id?: string;
+            name?: string;
+            categoryId?: string;
+            departmentId?: string;
+            assignedToId?: string;
+            serialNumber?: string;
+            status?: 'Available' | 'Allocated' | 'Under Maintenance' | 'Retired';
+            purchaseDate?: string;
+            purchaseValue?: number;
+            lastActivity?: string;
+            notes?: string;
+            history?: AssetHistory[];
+            attachments?: { name: string; size: string; date: string }[];
+          }
+
+          const mergedAssets = (backendAssets.value as BackendAsset[]).map((bAsset: BackendAsset) => {
+            const localMatch = initialAssets.find(a => a.id === bAsset.id);
+            return {
+              id: bAsset.id || 'AST-000',
+              name: bAsset.name || localMatch?.name || 'Standard Asset',
+              categoryId: bAsset.categoryId || localMatch?.categoryId || 'CAT-001',
+              departmentId: bAsset.departmentId || localMatch?.departmentId || 'DEP-001',
+              assignedToId: bAsset.assignedToId || localMatch?.assignedToId || 'none',
+              serialNumber: bAsset.serialNumber || localMatch?.serialNumber || 'SN-MOCK-123',
+              status: bAsset.status || localMatch?.status || 'Available',
+              purchaseDate: bAsset.purchaseDate || localMatch?.purchaseDate || '2023-01-15',
+              purchaseValue: bAsset.purchaseValue || localMatch?.purchaseValue || 1200.0,
+              lastActivity: bAsset.lastActivity || localMatch?.lastActivity || 'Just now',
+              notes: bAsset.notes || localMatch?.notes || '',
+              history: bAsset.history || localMatch?.history || [],
+              attachments: bAsset.attachments || localMatch?.attachments || []
+            };
+          });
+          setAssets(mergedAssets);
+        }
+        if (backendAllocations.status === 'fulfilled' && Array.isArray(backendAllocations.value) && backendAllocations.value.length > 0) {
+          setAllocations(backendAllocations.value);
+        }
+        if (backendTransfers.status === 'fulfilled' && Array.isArray(backendTransfers.value) && backendTransfers.value.length > 0) {
+          setTransfers(backendTransfers.value);
+        }
+        if (backendBookings.status === 'fulfilled' && Array.isArray(backendBookings.value) && backendBookings.value.length > 0) {
+          setBookings(backendBookings.value);
+        }
+        if (backendMaintenance.status === 'fulfilled' && Array.isArray(backendMaintenance.value) && backendMaintenance.value.length > 0) {
+          setMaintenance(backendMaintenance.value);
+        }
+        if (backendAudits.status === 'fulfilled' && Array.isArray(backendAudits.value) && backendAudits.value.length > 0) {
+          setAudits(backendAudits.value);
+        }
+        if (backendNotifications.status === 'fulfilled' && Array.isArray(backendNotifications.value) && backendNotifications.value.length > 0) {
+          setNotifications(backendNotifications.value);
+        }
+      } catch (err) {
+        console.error('Error syncing with backend:', err);
       }
     };
 
-    loadData('departments', initialDepartments, setDepartments);
-    loadData('employees', initialEmployees, setEmployees);
-    loadData('categories', initialCategories, setCategories);
-    loadData('assets', initialAssets, setAssets);
-    loadData('allocations', initialAllocations, setAllocations);
-    loadData('transfers', initialTransfers, setTransfers);
-    loadData('bookings', initialBookings, setBookings);
-    loadData('maintenance', initialMaintenance, setMaintenance);
-    loadData('audits', initialAudits, setAudits);
-    loadData('notifications', initialNotifications, setNotifications);
+    syncWithBackend();
   }, []);
 
   // Save to local storage helper
@@ -453,6 +558,18 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
     // Add activity log
     addNotification('Assets', `New asset registered: ${newAsset.name} (${nextId})`);
 
+    // Sync to backend (POST /api/assets/)
+    request('POST', '/assets/', {
+      name: newAsset.name,
+      categoryId: newAsset.categoryId,
+      departmentId: newAsset.departmentId,
+      serialNumber: newAsset.serialNumber,
+      status: newAsset.status,
+      purchaseDate: newAsset.purchaseDate,
+      purchaseValue: newAsset.purchaseValue,
+      notes: newAsset.notes
+    }).catch(err => console.error('Failed to sync new asset to backend:', err));
+
     return assetWithId;
   };
 
@@ -473,6 +590,13 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
     });
     setAssets(updated);
     saveData('assets', updated);
+
+    // Sync to backend (PUT /api/assets/{id})
+    request('PUT', `/assets/${id}`, {
+      name: updates.name,
+      department_id: updates.departmentId,
+      status: updates.status
+    }).catch(err => console.error(`Failed to sync asset update ${id} to backend:`, err));
   };
 
   const allocateAsset = (assetId: string, employeeId: string, notes?: string) => {
@@ -540,6 +664,13 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
     }
 
     addNotification('Assets', `Asset ${assetId} successfully allocated to ${employee?.name}.`);
+
+    // Sync to backend (POST /api/allocations/)
+    request('POST', '/allocations/', {
+      asset_id: assetId,
+      employee_id: employeeId,
+      notes: notes || ''
+    }).catch(err => console.error('Failed to sync allocation to backend:', err));
   };
 
   const createTransfer = (assetId: string, toDeptId: string, requestedBy: string) => {
@@ -580,6 +711,12 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
     saveData('assets', updatedAssets);
 
     addNotification('Assets', `Transfer requested for asset ${assetId} to ${departments.find(d => d.id === toDeptId)?.name}.`);
+
+    // Sync to backend (POST /api/transfers/)
+    request('POST', '/transfers/', {
+      asset_id: assetId,
+      to_department_id: toDeptId
+    }).catch(err => console.error('Failed to sync transfer to backend:', err));
   };
 
   const approveTransfer = (transferId: string) => {
@@ -646,6 +783,10 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
     }
 
     addNotification('Assets', `Transfer ${transferId} approved. Asset is now Available in Engineering.`);
+
+    // Sync to backend (PUT /api/transfers/{id}/approve/)
+    request('PUT', `/transfers/${transferId}/approve/`)
+      .catch(err => console.error(`Failed to sync transfer approval ${transferId} to backend:`, err));
   };
 
   const rejectTransfer = (transferId: string) => {
@@ -680,6 +821,10 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
     saveData('assets', updatedAssets);
 
     addNotification('Assets', `Transfer ${transferId} was rejected.`);
+
+    // Sync to backend (PUT /api/transfers/{id}/reject/)
+    request('PUT', `/transfers/${transferId}/reject/`)
+      .catch(err => console.error(`Failed to sync transfer rejection ${transferId} to backend:`, err));
   };
 
   const createBooking = (booking: Omit<Booking, 'id' | 'status'>) => {
@@ -732,6 +877,14 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
     saveData('assets', updatedAssets);
 
     addNotification('Bookings', `Reservation confirmed for asset ${booking.assetId} by ${booking.requesterName}.`);
+
+    // Sync to backend (POST /api/bookings/)
+    request('POST', '/bookings/', {
+      asset_id: booking.assetId,
+      start_time: booking.startDate,
+      end_time: booking.endDate
+    }).catch(err => console.error('Failed to sync booking to backend:', err));
+
     return { success: true };
   };
 
@@ -768,6 +921,11 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
     saveData('assets', updatedAssets);
 
     addNotification('Maintenance', `New Maintenance ticket ${newId} raised for asset ${mt.assetId}.`);
+
+    // Sync to backend (POST /api/maintenance/)
+    request('POST', '/maintenance/', {
+      asset_id: mt.assetId
+    }).catch(err => console.error('Failed to sync maintenance request to backend:', err));
   };
 
   const updateMaintenanceStatus = (id: string, status: Maintenance['status']) => {
@@ -809,6 +967,19 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
     saveData('assets', updatedAssets);
 
     addNotification('Maintenance', `Maintenance ticket ${id} has been marked as ${status}.`);
+
+    // Sync to backend
+    const statusStr = status as string;
+    if (statusStr === 'Completed') {
+      request('PUT', `/maintenance/${id}/complete/`, { resolution_notes: 'Resolved via UI completion' })
+        .catch(err => console.error(`Failed to sync maintenance completion ${id} to backend:`, err));
+    } else if (statusStr === 'Approved') {
+      request('PUT', `/maintenance/${id}/approve/`)
+        .catch(err => console.error(`Failed to sync maintenance approval ${id} to backend:`, err));
+    } else if (statusStr === 'Rejected') {
+      request('PUT', `/maintenance/${id}/reject/`)
+        .catch(err => console.error(`Failed to sync maintenance rejection ${id} to backend:`, err));
+    }
   };
 
   const submitAudit = (assetId: string, auditor: string, status: Audit['status'], notes?: string) => {
@@ -853,6 +1024,13 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
     saveData('assets', updatedAssets);
 
     addNotification('Audits', `Audit complete for ${assetId}: Marked as ${status}.`);
+
+    // Sync to backend (POST /api/audits/{id}/results/)
+    request('POST', `/audits/1/results/`, {
+      asset_id: assetId,
+      result: status === 'Found' ? 'FOUND' : status === 'Missing' ? 'MISSING' : 'DAMAGED',
+      notes: notes || ''
+    }).catch(err => console.error('Failed to sync audit result to backend:', err));
   };
 
   const addNotification = (category: Notification['category'], message: string) => {
@@ -872,6 +1050,10 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
     const updated = notifications.map(n => n.id === id ? { ...n, read: true } : n);
     setNotifications(updated);
     saveData('notifications', updated);
+
+    // Sync to backend (PUT /api/notifications/{id}/read/)
+    request('PUT', `/notifications/${id}/read/`)
+      .catch(err => console.error(`Failed to sync notification read ${id} to backend:`, err));
   };
 
   const markAllNotificationsRead = () => {

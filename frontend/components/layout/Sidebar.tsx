@@ -20,7 +20,8 @@ import {
   Settings, 
   ChevronLeft, 
   ChevronRight,
-  X
+  X,
+  LogOut
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -167,6 +168,28 @@ export function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }: 
           </div>
         ))}
       </nav>
+
+      {/* Logout Action */}
+      <div className="p-3 border-t border-border/60">
+        <button
+          onClick={() => {
+            localStorage.removeItem('isLoggedIn');
+            localStorage.removeItem('currentUserEmail');
+            window.location.href = '/login';
+          }}
+          className={`w-full group relative flex items-center rounded-lg transition-all duration-200 text-destructive hover:bg-destructive/10 ${
+            collapsed ? 'justify-center p-2.5' : 'px-3 py-2 space-x-3'
+          }`}
+        >
+          <LogOut className="w-4 h-4 flex-shrink-0" />
+          {!collapsed && <span className="text-xs font-semibold">Logout</span>}
+          {collapsed && (
+            <div className="absolute left-full ml-3 px-2 py-1 bg-popover text-popover-foreground text-xs rounded border border-border shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none z-50">
+              Logout
+            </div>
+          )}
+        </button>
+      </div>
 
       {/* Footer Collapse Button (Desktop Only) */}
       <div className="hidden md:flex items-center justify-end p-3 border-t border-border">
