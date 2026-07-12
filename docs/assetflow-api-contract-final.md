@@ -1,6 +1,6 @@
 # AssetFlow ERP — Final API Contract (FROZEN)
 
-**Status: locked.** This reflects the actual generated backend, verified endpoint-by-endpoint against the live OpenAPI schema. No endpoint, path, field, or shape changes past this document without both team leads reopening it explicitly. Frontend builds against this exactly as written, including its quirks (noted below) — don't "fix" anything on either side without updating this file first.
+**Status: locked.** This reflects the actual backend, verified endpoint-by-endpoint against the live OpenAPI schema. No endpoint, path, field, or shape changes past this document without both team leads reopening it explicitly. Frontend builds against this exactly as written, including its quirks (noted below) — don't "fix" anything on either side without updating this file first.
 
 Base URL: `/api`. Auth: `Authorization: Bearer <jwt>` header, required on everything except the seven public auth routes in section 2.
 
