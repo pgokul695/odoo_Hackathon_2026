@@ -1,79 +1,106 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from core.db import get_db
 from core.response import StandardResponse
-from core.config import settings
-from core import models, schemas
-import datetime
+from core.database import get_db
+from core.dependencies import require_verified_and_assigned, require_role
+from core.security import get_current_user
+from core.exceptions import AppException
+from core.utils import log_activity
+from shared.enums import Role
+from shared.models import Allocation, Asset, User
+from pydantic import BaseModel
+from modules.assets.services import AssetStateService
+from modules.notifications.service import notify
+from uuid import UUID
+from datetime import datetime
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_verified_and_assigned())])
 
-@router.get("/", response_model=StandardResponse)
-async def list_allocations(db: Session = Depends(get_db)):
-    if settings.USE_MOCK_DATA:
-        return StandardResponse(data=[{"id": "mock-alloc-1", "asset_id": "mock-asset-1", "employee_id": "mock-emp-1", "status": "Active"}])
+class AllocationCreate(BaseModel):
+    asset_id: UUID
+    employee_id: UUID
+
+class ReturnRequest(BaseModel):
+    condition_notes: str
+
+
+@router.get("/", response_model=StandardResponse, dependencies=[Depends(require_role(Role.Employee, Role.DepartmentHead, Role.AssetManager, Role.Admin))])
+async def list_allocations(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = db.query(Allocation).join(Asset)
     
-    allocations = db.query(models.Allocation).all()
-    # Serialize allocations
-    data = []
-    for al in allocations:
-        data.append({
-            "id": al.id,
-            "assetId": al.assetId,
-            "employeeId": al.employeeId,
-            "allocatedDate": al.allocatedDate,
-            "returnDate": al.returnDate,
-            "status": al.status,
-            "notes": al.notes
-        })
+    if current_user.role == Role.Employee.value:
+        query = query.filter(Allocation.employee_id == current_user.id)
+    elif current_user.role == Role.DepartmentHead.value:
+        query = query.filter(Asset.department_id == current_user.department_id)
+        
+    allocs = query.all()
+    data = [{"id": str(a.id), "asset_id": str(a.asset_id), "employee_id": str(a.employee_id)} for a in allocs]
     return StandardResponse(data=data)
 
-@router.post("/", response_model=StandardResponse)
-async def create_allocation(payload: dict, db: Session = Depends(get_db)):
-    asset_id = payload.get("asset_id")
-    employee_id = payload.get("employee_id")
-    notes = payload.get("notes", "")
-
-    asset = db.query(models.Asset).filter(models.Asset.id == asset_id).first()
-    employee = db.query(models.Employee).filter(models.Employee.id == employee_id).first()
-    if not asset or not employee:
-        raise HTTPException(status_code=404, detail="Asset or Employee not found")
-
-    count = db.query(models.Allocation).count()
-    new_id = f"al-{count + 1}"
-
-    new_alloc = models.Allocation(
-        id=new_id,
-        assetId=asset_id,
-        employeeId=employee_id,
-        allocatedDate=datetime.date.today().isoformat(),
-        status="Active",
-        notes=notes
+@router.post("/", response_model=StandardResponse, dependencies=[Depends(require_role(Role.AssetManager, Role.Admin))])
+async def create_allocation(
+    req: AllocationCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    asset = db.query(Asset).filter(Asset.id == req.asset_id).first()
+    if not asset:
+        raise AppException(status_code=404, message="Asset not found")
+        
+    if asset.status != "AVAILABLE":
+        raise AppException(status_code=409, message="Asset is not available for allocation")
+        
+    alloc = Allocation(
+        asset_id=asset.id,
+        employee_id=req.employee_id,
+        status="ACTIVE",
+        allocated_at=datetime.utcnow()
     )
-
-    # Update Asset status and history
-    asset.assignedToId = employee_id
-    asset.status = "Allocated"
-    asset.lastActivity = "Just now"
-    hist = list(asset.history or [])
-    hist.append({
-        "id": str(datetime.datetime.now().timestamp()),
-        "date": datetime.date.today().isoformat(),
-        "type": "Allocation",
-        "description": f"Allocated to {employee.name}",
-        "performedBy": "Keerthana Vinod"
-    })
-    asset.history = hist
-
-    # Update Employee active asset count
-    employee.activeAssetsCount += 1
-
-    # Update Category allocated asset count
-    category = db.query(models.Category).filter(models.Category.id == asset.categoryId).first()
-    if category:
-        category.allocatedAssets += 1
-
-    db.add(new_alloc)
+    db.add(alloc)
+    
+    AssetStateService.transition(asset, "ALLOCATED", db, current_user.id)
+    
     db.commit()
+    log_activity(db, "allocations", "created", f"Allocated asset {asset.id} to user {current_user.id}", current_user.id)
+    
+    notify(db, f"Asset {asset.name} has been allocated to you", [current_user], current_user.id)
+    db.commit()
+    
+    return StandardResponse(message="Allocation created", data={"id": str(alloc.id)})
 
-    return StandardResponse(data={"id": new_alloc.id}, message="Allocation created successfully")
+@router.put("/{id}/return/", response_model=StandardResponse, dependencies=[Depends(require_role(Role.AssetManager, Role.Admin))])
+async def return_allocation(
+    req: ReturnRequest,
+    id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    alloc = db.query(Allocation).filter(Allocation.id == id).first()
+    if not alloc:
+        raise AppException(status_code=404, message="Allocation not found")
+        
+    if alloc.status != "ACTIVE":
+        raise AppException(status_code=409, message="Allocation is already returned")
+        
+    asset = db.query(Asset).filter(Asset.id == alloc.asset_id).first()
+    if not asset:
+        raise AppException(status_code=404, message="Asset not found")
+
+    alloc.status = "RETURNED"
+    alloc.returned_at = datetime.utcnow()
+    alloc.condition_notes = req.condition_notes
+    
+    AssetStateService.transition(asset, "AVAILABLE", db, current_user.id)
+    
+    db.commit()
+    log_activity(db, "allocations", "returned", f"Returned allocation {id}. Notes: {req.condition_notes}", current_user.id)
+    
+    target_employee = db.query(User).filter(User.id == alloc.employee_id).first()
+    if target_employee:
+        notify(db, f"Asset {asset.name} has been successfully returned", [target_employee], current_user.id)
+        db.commit()
+        
+    return StandardResponse(message="Asset returned successfully")

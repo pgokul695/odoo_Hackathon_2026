@@ -1,143 +1,208 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Path, Query
 from sqlalchemy.orm import Session
-from core.db import get_db
 from core.response import StandardResponse
-from core.config import settings
-from core import models, schemas
-import datetime
+from core.database import get_db
+from core.dependencies import require_verified_and_assigned, require_role
+from core.security import get_current_user
+from core.exceptions import AppException
+from core.utils import log_activity
+from shared.enums import Role
+from shared.models import MaintenanceRequest, MaintenanceLog, Asset, User
+from modules.assets.services import AssetStateService
+from modules.notifications.service import notify, asset_managers_and_admins
+from pydantic import BaseModel
+from typing import Optional
+from uuid import UUID
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_verified_and_assigned())])
 
-@router.get("/", response_model=StandardResponse)
-async def list_maintenance(db: Session = Depends(get_db)):
-    if settings.USE_MOCK_DATA:
-        return StandardResponse(data=[{"id": "mock-maint-1", "assetId": "mock-asset-1", "issue": "Screen broken", "status": "Pending"}])
+class MaintenanceCreate(BaseModel):
+    asset_id: UUID
+
+class MaintenanceComplete(BaseModel):
+    resolution_notes: str
+
+@router.get("/", response_model=StandardResponse, dependencies=[Depends(require_role(Role.Employee, Role.DepartmentHead, Role.AssetManager, Role.Admin))])
+async def list_maintenance(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = db.query(MaintenanceRequest)
     
-    maintenance = db.query(models.Maintenance).all()
-    # Serialize maintenance
-    data = []
-    for m in maintenance:
-        data.append({
-            "id": m.id,
-            "assetId": m.assetId,
-            "issue": m.issue,
-            "priority": m.priority,
-            "status": m.status,
-            "assignedTechnician": m.assignedTechnician,
-            "createdDate": m.createdDate,
-            "cost": m.cost
-        })
+    if current_user.role == Role.Employee.value:
+        query = query.filter(MaintenanceRequest.employee_id == current_user.id)
+    elif current_user.role == Role.DepartmentHead.value:
+        query = query.filter(MaintenanceRequest.department_id == current_user.department_id)
+        
+    requests = query.offset(skip).limit(limit).all()
+    data = [{
+        "id": str(r.id), 
+        "asset_id": str(r.asset_id), 
+        "employee_id": str(r.employee_id),
+        "department_id": str(r.department_id) if r.department_id else None,
+        "status": r.status,
+        "resolution_notes": r.resolution_notes
+    } for r in requests]
     return StandardResponse(data=data)
 
-@router.post("/", response_model=StandardResponse)
-async def create_maintenance(payload: dict, db: Session = Depends(get_db)):
-    asset_id = payload.get("asset_id")
-    asset = db.query(models.Asset).filter(models.Asset.id == asset_id).first()
+@router.post("/", response_model=StandardResponse, dependencies=[Depends(require_role(Role.Employee, Role.DepartmentHead, Role.AssetManager, Role.Admin))])
+async def create_maintenance(
+    req: MaintenanceCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    asset = db.query(Asset).filter(Asset.id == req.asset_id).first()
     if not asset:
-        raise HTTPException(status_code=404, detail="Asset not found")
+        raise AppException(status_code=404, message="Asset not found")
         
-    count = db.query(models.Maintenance).count()
-    new_id = f"MR-{str(count + 13).zfill(3)}"
+    if asset.status in ["RETIRED", "UNDER_MAINTENANCE"]:
+        raise AppException(status_code=400, message="Asset is not eligible for maintenance")
+        
+    open_request = db.query(MaintenanceRequest).filter(
+        MaintenanceRequest.asset_id == asset.id,
+        MaintenanceRequest.status.in_(["REQUESTED", "APPROVED"])
+    ).first()
     
-    new_m = models.Maintenance(
-        id=new_id,
-        assetId=asset_id,
-        issue=payload.get("issue", "General repair and inspection request"),
-        priority=payload.get("priority", "Medium"),
-        status="Requested",
-        assignedTechnician="None",
-        createdDate=datetime.date.today().isoformat()
+    if open_request:
+        raise AppException(status_code=409, message="Asset already has an open maintenance request")
+        
+    m_req = MaintenanceRequest(
+        asset_id=asset.id,
+        employee_id=current_user.id,
+        department_id=current_user.department_id,
+        status="REQUESTED"
     )
-    
-    # Update Asset status and history
-    asset.status = "Under Maintenance"
-    asset.lastActivity = "Just now"
-    hist = list(asset.history or [])
-    hist.append({
-        "id": str(datetime.datetime.now().timestamp()),
-        "date": datetime.date.today().isoformat(),
-        "type": "Maintenance Request",
-        "description": f"Maintenance {new_id} created: {new_m.issue}",
-        "performedBy": "Keerthana Vinod"
-    })
-    asset.history = hist
-    
-    db.add(new_m)
+    db.add(m_req)
     db.commit()
-    return StandardResponse(data={"id": new_m.id}, message="Maintenance ticket created successfully")
+    
+    log = MaintenanceLog(request_id=m_req.id, action="REQUESTED")
+    db.add(log)
+    db.commit()
+    
+    log_activity(db, "maintenance", "created", f"Raised maintenance request {m_req.id}", current_user.id)
+    
+    admins = asset_managers_and_admins(db)
+    if admins:
+        notify(db, f"Maintenance requested for asset {asset.name}", admins, current_user.id)
+        db.commit()
+        
+    return StandardResponse(message="Maintenance request created", data={"id": str(m_req.id)})
 
-@router.put("/{id}/complete/", response_model=StandardResponse)
-async def complete_maintenance(id: str, payload: dict, db: Session = Depends(get_db)):
-    ticket = db.query(models.Maintenance).filter(models.Maintenance.id == id).first()
-    if not ticket:
-        raise HTTPException(status_code=404, detail="Maintenance ticket not found")
+@router.put("/{id}/approve/", response_model=StandardResponse, dependencies=[Depends(require_role(Role.AssetManager, Role.Admin))])
+async def approve_maintenance(
+    id: str = Path(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    req = db.query(MaintenanceRequest).filter(MaintenanceRequest.id == id).first()
+    if not req:
+        raise AppException(status_code=404, message="Request not found")
         
-    ticket.status = "Completed"
+    if req.status != "REQUESTED":
+        raise AppException(status_code=409, message="Only REQUESTED maintenance can be approved")
+        
+    asset = db.query(Asset).filter(Asset.id == req.asset_id).first()
+    if not asset:
+        raise AppException(status_code=404, message="Asset not found")
+        
+    req.status = "APPROVED"
+    db.add(MaintenanceLog(request_id=req.id, action="APPROVED"))
     
-    asset = db.query(models.Asset).filter(models.Asset.id == ticket.assetId).first()
-    if asset:
-        hist = list(asset.history or [])
-        hist.append({
-            "id": str(datetime.datetime.now().timestamp()),
-            "date": datetime.date.today().isoformat(),
-            "type": "Maintenance Update",
-            "description": f"Maintenance ticket {id} marked as Completed. Notes: {payload.get('resolution_notes', 'Resolved via UI completion')}",
-            "performedBy": "Keerthana Vinod"
-        })
-        asset.history = hist
-        
-        # Move asset status back
-        asset.status = "Allocated" if asset.assignedToId != "none" else "Available"
-        asset.lastActivity = "Just now"
-        
+    AssetStateService.transition(asset, "UNDER_MAINTENANCE", db, current_user.id)
+    
     db.commit()
-    return StandardResponse(message="Maintenance ticket marked completed")
+    log_activity(db, "maintenance", "approved", f"Approved maintenance request {id}", current_user.id)
+    
+    requester = db.query(User).filter(User.id == req.employee_id).first()
+    if requester:
+        notify(db, f"Your maintenance request for asset {asset.name} was approved", [requester], current_user.id)
+        db.commit()
+        
+    return StandardResponse(message="Request approved")
 
-@router.put("/{id}/approve/", response_model=StandardResponse)
-async def approve_maintenance(id: str, db: Session = Depends(get_db)):
-    ticket = db.query(models.Maintenance).filter(models.Maintenance.id == id).first()
-    if not ticket:
-        raise HTTPException(status_code=404, detail="Maintenance ticket not found")
+@router.put("/{id}/reject/", response_model=StandardResponse, dependencies=[Depends(require_role(Role.AssetManager, Role.Admin))])
+async def reject_maintenance(
+    id: str = Path(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    req = db.query(MaintenanceRequest).filter(MaintenanceRequest.id == id).first()
+    if not req:
+        raise AppException(status_code=404, message="Request not found")
         
-    ticket.status = "Approved"
-    
-    asset = db.query(models.Asset).filter(models.Asset.id == ticket.assetId).first()
-    if asset:
-        hist = list(asset.history or [])
-        hist.append({
-            "id": str(datetime.datetime.now().timestamp()),
-            "date": datetime.date.today().isoformat(),
-            "type": "Maintenance Update",
-            "description": f"Maintenance ticket {id} marked as Approved",
-            "performedBy": "Keerthana Vinod"
-        })
-        asset.history = hist
-        asset.lastActivity = "Just now"
+    if req.status != "REQUESTED":
+        raise AppException(status_code=409, message="Only REQUESTED maintenance can be rejected")
         
+    req.status = "REJECTED"
+    db.add(MaintenanceLog(request_id=req.id, action="REJECTED"))
     db.commit()
-    return StandardResponse(message="Maintenance ticket marked approved")
+    log_activity(db, "maintenance", "rejected", f"Rejected maintenance request {id}", current_user.id)
+    
+    requester = db.query(User).filter(User.id == req.employee_id).first()
+    if requester:
+        # Asset lookup
+        asset_name = db.query(Asset).filter(Asset.id == req.asset_id).first().name
+        notify(db, f"Your maintenance request for asset {asset_name} was rejected", [requester], current_user.id)
+        db.commit()
+        
+    return StandardResponse(message="Request rejected")
 
-@router.put("/{id}/reject/", response_model=StandardResponse)
-async def reject_maintenance(id: str, db: Session = Depends(get_db)):
-    ticket = db.query(models.Maintenance).filter(models.Maintenance.id == id).first()
-    if not ticket:
-        raise HTTPException(status_code=404, detail="Maintenance ticket not found")
+@router.put("/{id}/complete/", response_model=StandardResponse, dependencies=[Depends(require_role(Role.AssetManager, Role.Admin))])
+async def complete_maintenance(
+    payload: MaintenanceComplete,
+    id: str = Path(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    req = db.query(MaintenanceRequest).filter(MaintenanceRequest.id == id).first()
+    if not req:
+        raise AppException(status_code=404, message="Request not found")
         
-    ticket.status = "Rejected"
+    if req.status != "APPROVED":
+        raise AppException(status_code=409, message="Only APPROVED maintenance can be completed")
+        
+    if not payload.resolution_notes or not payload.resolution_notes.strip():
+        raise AppException(status_code=400, message="resolution_notes is required")
+        
+    asset = db.query(Asset).filter(Asset.id == req.asset_id).first()
+    if not asset:
+        raise AppException(status_code=404, message="Asset not found")
+        
+    req.status = "COMPLETED"
+    req.resolution_notes = payload.resolution_notes
+    db.add(MaintenanceLog(request_id=req.id, action="COMPLETED", notes=payload.resolution_notes))
     
-    asset = db.query(models.Asset).filter(models.Asset.id == ticket.assetId).first()
-    if asset:
-        hist = list(asset.history or [])
-        hist.append({
-            "id": str(datetime.datetime.now().timestamp()),
-            "date": datetime.date.today().isoformat(),
-            "type": "Maintenance Update",
-            "description": f"Maintenance ticket {id} marked as Rejected",
-            "performedBy": "Keerthana Vinod"
-        })
-        asset.history = hist
-        asset.status = "Allocated" if asset.assignedToId != "none" else "Available"
-        asset.lastActivity = "Just now"
-        
+    AssetStateService.transition(asset, "AVAILABLE", db, current_user.id)
+    
     db.commit()
-    return StandardResponse(message="Maintenance ticket marked rejected")
+    log_activity(db, "maintenance", "completed", f"Completed maintenance request {id}", current_user.id)
+    
+    requester = db.query(User).filter(User.id == req.employee_id).first()
+    if requester:
+        notify(db, f"Your maintenance request for asset {asset.name} was completed", [requester], current_user.id)
+        db.commit()
+        
+    return StandardResponse(message="Request completed")
+
+@router.get("/{id}/logs", response_model=StandardResponse, dependencies=[Depends(require_role(Role.Employee, Role.DepartmentHead, Role.AssetManager, Role.Admin))])
+async def get_maintenance_logs(
+    id: str = Path(...),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    req = db.query(MaintenanceRequest).filter(MaintenanceRequest.id == id).first()
+    if not req:
+        raise AppException(status_code=404, message="Request not found")
+        
+    if current_user.role == Role.Employee.value and req.employee_id != current_user.id:
+        raise AppException(status_code=404, message="Request not found")
+    elif current_user.role == Role.DepartmentHead.value and req.department_id != current_user.department_id:
+        raise AppException(status_code=404, message="Request not found")
+        
+    logs = db.query(MaintenanceLog).filter(MaintenanceLog.request_id == id).order_by(MaintenanceLog.created_at).offset(skip).limit(limit).all()
+    data = [{"id": str(l.id), "action": l.action, "notes": l.notes, "created_at": l.created_at.isoformat()} for l in logs]
+    return StandardResponse(data=data)

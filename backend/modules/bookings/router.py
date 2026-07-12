@@ -1,69 +1,131 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Path, Query
 from sqlalchemy.orm import Session
-from core.db import get_db
 from core.response import StandardResponse
-from core.config import settings
-from core import models, schemas
-import datetime
+from core.database import get_db
+from core.dependencies import require_verified_and_assigned, require_role
+from core.security import get_current_user
+from core.exceptions import AppException
+from core.utils import log_activity
+from shared.enums import Role
+from shared.models import Booking, Asset, User
+from modules.assets.services import AssetStateService
+from modules.notifications.service import notify
+from pydantic import BaseModel
+from uuid import UUID
+from datetime import datetime
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_verified_and_assigned())])
 
-@router.get("/", response_model=StandardResponse)
-async def list_bookings(db: Session = Depends(get_db)):
-    if settings.USE_MOCK_DATA:
-        return StandardResponse(data=[{"id": "mock-booking-1", "assetId": "mock-asset-1", "requesterName": "John"}])
+class BookingCreate(BaseModel):
+    asset_id: UUID
+    start_time: datetime
+    end_time: datetime
+
+@router.get("/", response_model=StandardResponse, dependencies=[Depends(require_role(Role.Employee, Role.DepartmentHead, Role.AssetManager, Role.Admin))])
+async def list_bookings(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = db.query(Booking)
     
-    bookings = db.query(models.Booking).all()
-    # Serialize bookings
-    data = []
-    for b in bookings:
-        data.append({
-            "id": b.id,
-            "assetId": b.assetId,
-            "requesterName": b.requesterName,
-            "startDate": b.startDate,
-            "endDate": b.endDate,
-            "purpose": b.purpose,
-            "status": b.status
-        })
+    if current_user.role == Role.Employee.value:
+        query = query.filter(Booking.employee_id == current_user.id)
+    elif current_user.role == Role.DepartmentHead.value:
+        query = query.join(Asset).filter(Asset.department_id == current_user.department_id)
+        
+    bookings = query.offset(skip).limit(limit).all()
+    data = [{
+        "id": str(b.id), 
+        "asset_id": str(b.asset_id), 
+        "employee_id": str(b.employee_id), 
+        "start_time": b.start_time.isoformat(),
+        "end_time": b.end_time.isoformat(),
+        "status": b.status
+    } for b in bookings]
+    
     return StandardResponse(data=data)
 
-@router.post("/", response_model=StandardResponse)
-async def create_booking(payload: dict, db: Session = Depends(get_db)):
-    asset_id = payload.get("asset_id")
-    start_time = payload.get("start_time")
-    end_time = payload.get("end_time")
-
-    asset = db.query(models.Asset).filter(models.Asset.id == asset_id).first()
+@router.post("/", response_model=StandardResponse, dependencies=[Depends(require_role(Role.Employee, Role.DepartmentHead, Role.AssetManager, Role.Admin))])
+async def create_booking(
+    req: BookingCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if req.end_time.replace(tzinfo=None) <= req.start_time.replace(tzinfo=None):
+        raise AppException(status_code=400, message="end_time must be strictly after start_time")
+    
+    if req.start_time.replace(tzinfo=None) < datetime.utcnow():
+        raise AppException(status_code=400, message="start_time cannot be in the past")
+        
+    asset = db.query(Asset).filter(Asset.id == req.asset_id).first()
     if not asset:
-        raise HTTPException(status_code=404, detail="Asset not found")
-
-    count = db.query(models.Booking).count()
-    new_id = f"bk-{count + 1}"
-
-    new_booking = models.Booking(
-        id=new_id,
-        assetId=asset_id,
-        requesterName=payload.get("requester_name", "Keerthana Vinod"),
-        startDate=start_time,
-        endDate=end_time,
-        purpose=payload.get("purpose", "Reservation"),
-        status="Confirmed"
+        raise AppException(status_code=404, message="Asset not found")
+        
+    if asset.status != "AVAILABLE":
+        raise AppException(status_code=400, message="Asset is not available for booking")
+        
+    # Check overlaps for CONFIRMED bookings only
+    overlapping = db.query(Booking).filter(
+        Booking.asset_id == asset.id,
+        Booking.status == "CONFIRMED",
+        Booking.start_time < req.end_time,
+        Booking.end_time > req.start_time
+    ).first()
+    
+    if overlapping:
+        raise AppException(status_code=409, message="Requested time window overlaps with an existing confirmed booking")
+        
+    booking = Booking(
+        asset_id=asset.id,
+        employee_id=current_user.id,
+        start_time=req.start_time.replace(tzinfo=None),
+        end_time=req.end_time.replace(tzinfo=None),
+        status="CONFIRMED"
     )
-
-    # Add booking history to asset
-    hist = list(asset.history or [])
-    hist.append({
-        "id": str(datetime.datetime.now().timestamp()),
-        "date": datetime.date.today().isoformat(),
-        "type": "Booking",
-        "description": f"Booked for: {new_booking.purpose}",
-        "performedBy": new_booking.requesterName
-    })
-    asset.history = hist
-    asset.lastActivity = "Just now"
-
-    db.add(new_booking)
+    db.add(booking)
     db.commit()
+    
+    log_activity(db, "bookings", "created", f"Created booking {booking.id} for asset {asset.id}", current_user.id)
+    
+    notify(db, f"Your booking for asset {asset.name} is confirmed", [current_user], current_user.id)
+    db.commit()
+    
+    return StandardResponse(message="Booking confirmed", data={"id": str(booking.id)})
 
-    return StandardResponse(data={"id": new_booking.id}, message="Booking confirmed successfully")
+@router.put("/{id}/cancel/", response_model=StandardResponse, dependencies=[Depends(require_role(Role.Employee, Role.DepartmentHead, Role.AssetManager, Role.Admin))])
+async def cancel_booking(
+    id: str = Path(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    booking = db.query(Booking).filter(Booking.id == id).first()
+    if not booking:
+        raise AppException(status_code=404, message="Booking not found")
+        
+    if booking.status == "CANCELLED":
+        raise AppException(status_code=409, message="Booking is already cancelled")
+        
+    # Scope gates
+    if current_user.role == Role.Employee.value:
+        if booking.employee_id != current_user.id:
+            raise AppException(status_code=403, message="Employees can only cancel their own bookings")
+    elif current_user.role == Role.DepartmentHead.value:
+        asset = db.query(Asset).filter(Asset.id == booking.asset_id).first()
+        if not asset or asset.department_id != current_user.department_id:
+            raise AppException(status_code=403, message="Department Heads can only cancel bookings for assets in their department")
+            
+    booking.status = "CANCELLED"
+    db.commit()
+    
+    log_activity(db, "bookings", "cancelled", f"Cancelled booking {id}", current_user.id)
+    
+    booker = db.query(User).filter(User.id == booking.employee_id).first()
+    if booker:
+        # Asset lookup might fail if asset was deleted but we can just use the ID
+        asset_name = db.query(Asset).filter(Asset.id == booking.asset_id).first().name
+        notify(db, f"Your booking for asset {asset_name} was cancelled", [booker], current_user.id)
+        db.commit()
+        
+    return StandardResponse(message="Booking cancelled")
