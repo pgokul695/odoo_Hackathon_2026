@@ -8,7 +8,7 @@ from uuid import UUID
 class AssetStateService:
     VALID_TRANSITIONS = {
         "AVAILABLE":         {"ALLOCATED", "UNDER_MAINTENANCE", "RETIRED"},
-        "ALLOCATED":         {"AVAILABLE", "RETIRED"},          # return, or force-retire while allocated
+        "ALLOCATED":         {"AVAILABLE", "UNDER_MAINTENANCE", "RETIRED"},
         "UNDER_MAINTENANCE": {"AVAILABLE", "RETIRED"},
         "RETIRED":           set(),                              # terminal — no transitions out
     }

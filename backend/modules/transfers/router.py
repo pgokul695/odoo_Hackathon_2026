@@ -8,6 +8,8 @@ from core.exceptions import AppException
 from core.utils import log_activity
 from shared.enums import Role
 from shared.models import Transfer, Asset, User
+from modules.assets.services import AssetStateService
+from modules.notifications.service import notify, department_heads
 from pydantic import BaseModel
 from typing import Optional
 from uuid import UUID
@@ -81,17 +83,24 @@ async def initiate_transfer(
     if pending:
         raise AppException(status_code=409, message="Asset already has a pending transfer")
         
-    transfer = Transfer(
+    t_req = Transfer(
         asset_id=req.asset_id,
         requested_by_id=current_user.id,
         from_department_id=from_dept,
         to_department_id=req.to_department_id,
         status="PENDING"
     )
-    db.add(transfer)
+    db.add(t_req)
     db.commit()
-    log_activity(db, "transfers", "initiated", f"Initiated transfer for asset {req.asset_id}", current_user.id)
-    return StandardResponse(message="Transfer initiated", data={"id": str(transfer.id)})
+    
+    log_activity(db, "transfers", "created", f"Requested transfer {t_req.id}", current_user.id)
+    
+    heads = department_heads(db, t_req.to_department_id)
+    if heads:
+        notify(db, f"Transfer requested for asset {asset.name}", heads, current_user.id)
+        db.commit()
+        
+    return StandardResponse(message="Transfer request created", data={"id": str(t_req.id)})
 
 @router.put("/{id}/approve/", response_model=StandardResponse, dependencies=[Depends(require_role(Role.DepartmentHead, Role.AssetManager, Role.Admin))])
 async def approve_transfer(
@@ -124,6 +133,12 @@ async def approve_transfer(
     
     db.commit()
     log_activity(db, "transfers", "approved", f"Approved transfer {id}", current_user.id)
+    
+    requester = db.query(User).filter(User.id == transfer.requested_by_id).first()
+    if requester:
+        notify(db, f"Your transfer request for asset {asset.name} was approved", [requester], current_user.id)
+        db.commit()
+        
     return StandardResponse(message="Transfer approved")
 
 @router.put("/{id}/reject/", response_model=StandardResponse, dependencies=[Depends(require_role(Role.DepartmentHead, Role.AssetManager, Role.Admin))])
@@ -147,4 +162,10 @@ async def reject_transfer(
     transfer.resolved_at = datetime.utcnow()
     db.commit()
     log_activity(db, "transfers", "rejected", f"Rejected transfer {id}", current_user.id)
+    
+    requester = db.query(User).filter(User.id == transfer.requested_by_id).first()
+    if requester:
+        notify(db, f"Your transfer request was rejected", [requester], current_user.id)
+        db.commit()
+        
     return StandardResponse(message="Transfer rejected")

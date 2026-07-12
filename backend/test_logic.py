@@ -1,103 +1,82 @@
-from core.database import SessionLocal
-from shared.models import Asset, MaintenanceRequest, User, Department
+from core.database import SessionLocal, engine
+from core.database import Base
+from shared.models import Asset, User, Report
 from core.exceptions import AppException
-from modules.assets.services import AssetStateService
 import asyncio
 
 async def run_test():
+    # Force recreate tables since Report model changed
+    db = SessionLocal()
+    try:
+        from sqlalchemy import text
+        db.execute(text("DROP TABLE IF EXISTS reports CASCADE"))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print("Drop error", e)
+        
+    Base.metadata.create_all(bind=engine)
+    
+    # Alternatively just start a session
     db = SessionLocal()
     admin_user = db.query(User).filter(User.name == "Admin User").first()
-    emp_it = db.query(User).filter(User.name == "IT Emp").first()
     
-    # 1. Get an asset
-    asset = db.query(Asset).filter(Asset.name == "Dell XPS - IT").first()
+    # 1. Dashboard
+    from modules.dashboard.router import get_dashboard
+    dashboard_res = await get_dashboard(db)
+    dash_data = dashboard_res.data
     
-    # ensure clean state
-    if asset.status != "AVAILABLE":
-        AssetStateService.transition(asset, "AVAILABLE", db, admin_user.id)
-        db.commit()
-    db.query(MaintenanceRequest).filter(MaintenanceRequest.asset_id == asset.id).delete()
-    db.commit()
-
-    from modules.maintenance.router import create_maintenance, approve_maintenance, reject_maintenance, complete_maintenance, get_maintenance_logs
-    from modules.maintenance.router import MaintenanceCreate, MaintenanceComplete
-    
-    print("\n--- Test 1: Request on RETIRED Asset ---")
-    AssetStateService.transition(asset, "RETIRED", db, admin_user.id)
-    db.commit()
-    try:
-        req = MaintenanceCreate(asset_id=asset.id)
-        await create_maintenance(req, db, emp_it)
-        print("FAIL: Allowed maintenance on RETIRED asset")
-    except AppException as e:
-        if e.status_code == 400: print("PASS: Prevented maintenance on RETIRED asset")
-        else: print("FAIL:", e.status_code)
-        
-    # restore asset
-    AssetStateService.transition(asset, "AVAILABLE", db, admin_user.id)
-    db.commit()
-
-    print("\n--- Test 2: Valid Request & Duplicate Open Check ---")
-    req1 = MaintenanceCreate(asset_id=asset.id)
-    res1 = await create_maintenance(req1, db, emp_it)
-    m_req_id = res1.data["id"]
-    print("PASS: Created valid maintenance request")
-    
-    try:
-        req2 = MaintenanceCreate(asset_id=asset.id)
-        await create_maintenance(req2, db, emp_it)
-        print("FAIL: Allowed duplicate open request")
-    except AppException as e:
-        if e.status_code == 409: print("PASS: Prevented duplicate open request")
-        else: print("FAIL:", e.status_code)
-
-    print("\n--- Test 3: Out-of-band Complete/Reject ---")
-    try:
-        await complete_maintenance(MaintenanceComplete(resolution_notes="Fixed"), m_req_id, db, admin_user)
-        print("FAIL: Completed REQUESTED request")
-    except AppException as e:
-        if e.status_code == 409: print("PASS: Prevented completing REQUESTED request")
-        else: print("FAIL:", e.status_code)
-        
-    print("\n--- Test 4: Approve & Side Effects ---")
-    await approve_maintenance(m_req_id, db, admin_user)
-    print("PASS: Approved request successfully")
-    db.refresh(asset)
-    if asset.status == "UNDER_MAINTENANCE":
-        print("PASS: Asset status flipped to UNDER_MAINTENANCE")
+    print("\n--- Test 1: Dashboard Counts ---")
+    if "assets_by_status" in dash_data and "total" in dash_data["assets_by_status"]:
+        total_by_status = dash_data["assets_by_status"]["total"]
+        total_by_dept = sum(dash_data["assets_by_department"].values())
+        if total_by_status == total_by_dept:
+            print(f"PASS: Dashboard totals align ({total_by_status})")
+        else:
+            print(f"FAIL: Dashboard mismatch status={total_by_status} vs dept={total_by_dept}")
     else:
-        print("FAIL: Asset status is", asset.status)
+        print("FAIL: Bad dashboard shape")
         
+    # 2. Reports
+    from modules.reports.router import generate_report, ReportGenerate, list_reports
+    
+    print("\n--- Test 2: Invalid Report Type ---")
+    req_bad_type = ReportGenerate(report_type="MADE_UP", filters={})
     try:
-        await reject_maintenance(m_req_id, db, admin_user)
-        print("FAIL: Rejected APPROVED request")
+        await generate_report(req_bad_type, db, admin_user)
+        print("FAIL: Expected 400 on bad report type")
     except AppException as e:
-        if e.status_code == 409: print("PASS: Prevented rejecting APPROVED request")
-        else: print("FAIL:", e.status_code)
-        
-    print("\n--- Test 5: Complete & Validation ---")
+        if e.status_code == 400:
+            print("PASS: Rejected invalid report_type")
+        else:
+            print(f"FAIL: Wrong error code {e.status_code}")
+            
+    print("\n--- Test 3: Invalid Filter Key ---")
+    req_bad_filter = ReportGenerate(report_type="ASSET_INVENTORY", filters={"audit_id": "123"})
     try:
-        await complete_maintenance(MaintenanceComplete(resolution_notes="   "), m_req_id, db, admin_user)
-        print("FAIL: Completed with empty notes")
+        await generate_report(req_bad_filter, db, admin_user)
+        print("FAIL: Expected 400 on invalid filter key")
     except AppException as e:
-        if e.status_code == 400: print("PASS: Prevented completing with empty notes")
-        else: print("FAIL:", e.status_code)
+        if e.status_code == 400:
+            print("PASS: Rejected invalid filter key")
+        else:
+            print(f"FAIL: Wrong error code {e.status_code}")
+            
+    print("\n--- Test 4: Generate Valid Report ---")
+    req_valid = ReportGenerate(report_type="ASSET_INVENTORY", filters={"status": "AVAILABLE"})
+    res_valid = await generate_report(req_valid, db, admin_user)
+    if isinstance(res_valid.data, list):
+        print(f"PASS: Generated ASSET_INVENTORY with {len(res_valid.data)} results")
+    else:
+        print("FAIL: ASSET_INVENTORY data is not a list")
         
-    await complete_maintenance(MaintenanceComplete(resolution_notes="Replaced faulty ram"), m_req_id, db, admin_user)
-    print("PASS: Completed request successfully")
-    db.refresh(asset)
-    if asset.status == "AVAILABLE":
-        print("PASS: Asset status flipped to AVAILABLE")
+    print("\n--- Test 5: List Reports Metadata ---")
+    res_list = await list_reports(0, 20, db)
+    reports = res_list.data
+    if len(reports) > 0 and "filters" in reports[0] and "data" not in reports[0]:
+        print("PASS: list_reports returns metadata only")
     else:
-        print("FAIL: Asset status is", asset.status)
-
-    print("\n--- Test 6: Logs ---")
-    logs = await get_maintenance_logs(m_req_id, 0, 100, db, emp_it)
-    actions = [l["action"] for l in logs.data]
-    if actions == ["REQUESTED", "APPROVED", "COMPLETED"]:
-        print("PASS: Logs generated exactly as expected:", actions)
-    else:
-        print("FAIL: Logs generated incorrectly:", actions)
+        print("FAIL: list_reports returned bad shape")
 
 if __name__ == "__main__":
     asyncio.run(run_test())

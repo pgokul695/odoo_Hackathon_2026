@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Boolean, DateTime, Integer, ForeignKey
+from sqlalchemy import Column, String, Boolean, DateTime, Integer, ForeignKey, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -121,7 +121,10 @@ class Audit(Base):
 class Report(Base):
     __tablename__ = "reports"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    title = Column(String, nullable=False)
+    report_type = Column(String, nullable=False)
+    filters = Column(JSON, nullable=True)
+    generated_by_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
+    generated_at = Column(DateTime, default=datetime.utcnow)
 
 class Notification(Base):
     __tablename__ = "notifications"

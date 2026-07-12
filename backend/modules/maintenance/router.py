@@ -9,6 +9,7 @@ from core.utils import log_activity
 from shared.enums import Role
 from shared.models import MaintenanceRequest, MaintenanceLog, Asset, User
 from modules.assets.services import AssetStateService
+from modules.notifications.service import notify, asset_managers_and_admins
 from pydantic import BaseModel
 from typing import Optional
 from uuid import UUID
@@ -81,6 +82,12 @@ async def create_maintenance(
     db.commit()
     
     log_activity(db, "maintenance", "created", f"Raised maintenance request {m_req.id}", current_user.id)
+    
+    admins = asset_managers_and_admins(db)
+    if admins:
+        notify(db, f"Maintenance requested for asset {asset.name}", admins, current_user.id)
+        db.commit()
+        
     return StandardResponse(message="Maintenance request created", data={"id": str(m_req.id)})
 
 @router.put("/{id}/approve/", response_model=StandardResponse, dependencies=[Depends(require_role(Role.AssetManager, Role.Admin))])
@@ -107,6 +114,12 @@ async def approve_maintenance(
     
     db.commit()
     log_activity(db, "maintenance", "approved", f"Approved maintenance request {id}", current_user.id)
+    
+    requester = db.query(User).filter(User.id == req.employee_id).first()
+    if requester:
+        notify(db, f"Your maintenance request for asset {asset.name} was approved", [requester], current_user.id)
+        db.commit()
+        
     return StandardResponse(message="Request approved")
 
 @router.put("/{id}/reject/", response_model=StandardResponse, dependencies=[Depends(require_role(Role.AssetManager, Role.Admin))])
@@ -126,6 +139,14 @@ async def reject_maintenance(
     db.add(MaintenanceLog(request_id=req.id, action="REJECTED"))
     db.commit()
     log_activity(db, "maintenance", "rejected", f"Rejected maintenance request {id}", current_user.id)
+    
+    requester = db.query(User).filter(User.id == req.employee_id).first()
+    if requester:
+        # Asset lookup
+        asset_name = db.query(Asset).filter(Asset.id == req.asset_id).first().name
+        notify(db, f"Your maintenance request for asset {asset_name} was rejected", [requester], current_user.id)
+        db.commit()
+        
     return StandardResponse(message="Request rejected")
 
 @router.put("/{id}/complete/", response_model=StandardResponse, dependencies=[Depends(require_role(Role.AssetManager, Role.Admin))])
@@ -157,6 +178,12 @@ async def complete_maintenance(
     
     db.commit()
     log_activity(db, "maintenance", "completed", f"Completed maintenance request {id}", current_user.id)
+    
+    requester = db.query(User).filter(User.id == req.employee_id).first()
+    if requester:
+        notify(db, f"Your maintenance request for asset {asset.name} was completed", [requester], current_user.id)
+        db.commit()
+        
     return StandardResponse(message="Request completed")
 
 @router.get("/{id}/logs", response_model=StandardResponse, dependencies=[Depends(require_role(Role.Employee, Role.DepartmentHead, Role.AssetManager, Role.Admin))])

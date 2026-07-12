@@ -10,6 +10,7 @@ from shared.enums import Role
 from shared.models import Allocation, Asset, User
 from pydantic import BaseModel
 from modules.assets.services import AssetStateService
+from modules.notifications.service import notify
 from uuid import UUID
 from datetime import datetime
 
@@ -63,6 +64,10 @@ async def create_allocation(
     
     db.commit()
     log_activity(db, "allocations", "created", f"Allocated asset {asset.id} to user {current_user.id}", current_user.id)
+    
+    notify(db, f"Asset {asset.name} has been allocated to you", [current_user], current_user.id)
+    db.commit()
+    
     return StandardResponse(message="Allocation created", data={"id": str(alloc.id)})
 
 @router.put("/{id}/return/", response_model=StandardResponse, dependencies=[Depends(require_role(Role.AssetManager, Role.Admin))])
@@ -91,4 +96,10 @@ async def return_allocation(
     
     db.commit()
     log_activity(db, "allocations", "returned", f"Returned allocation {id}. Notes: {req.condition_notes}", current_user.id)
+    
+    target_employee = db.query(User).filter(User.id == alloc.employee_id).first()
+    if target_employee:
+        notify(db, f"Asset {asset.name} has been successfully returned", [target_employee], current_user.id)
+        db.commit()
+        
     return StandardResponse(message="Asset returned successfully")

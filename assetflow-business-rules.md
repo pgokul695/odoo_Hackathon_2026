@@ -10,7 +10,7 @@ This is a running log of business-logic decisions, separate from the frozen API 
 
 2. **Audit result side effects** — submitting an audit result of `DAMAGED` or `MISSING` immediately and automatically changes the asset's status:
    - `DAMAGED` → asset status becomes `UNDER_MAINTENANCE`
-   - `MISSING` → asset status becomes... *(see open question below — MISSING doesn't map cleanly onto the existing four-value `AssetStatus` enum, this needs resolving before Phase 6 is built)*
+   - `MISSING` → asset status becomes `UNDER_MAINTENANCE` (Resolved in Decision 6)
    - `FOUND` → no status change (asset was already accounted for).
    (Decided when scoping Phase 6 — Audits.)
 
@@ -43,11 +43,16 @@ This is a running log of business-logic decisions, separate from the frozen API 
    - **`MaintenanceComplete.resolution_notes`**: required, non-empty string — 400 if missing or blank.
    - **`/api/maintenance/{id}/logs`**: not a separately-written resource — no endpoint exists to write to it, so it's populated automatically as a side effect of the four write operations (create/approve/reject/complete), each appending a log entry (actor, timestamp, resulting status, and `resolution_notes` where applicable). Read-only via the existing `GET` route; no contract change needed.
 
+6. **Audits** — (Decided when scoping Phase 5 — Audits. This resolves the `MISSING`-status open question that was blocking this phase.)
+   - **`MISSING` → `UNDER_MAINTENANCE`, not a new enum value, not `RETIRED`.** Resolution: `MISSING` audit results set `Asset.status = UNDER_MAINTENANCE`, used as a stand-in for "needs investigation," rather than adding a fifth `AssetStatus` value (which would reopen the frozen contract's enum) or mapping to `RETIRED`. Rationale: `RETIRED` is documented as terminal in Phase 1's state machine — mapping a missing asset to it would make a later recovery ("it turned up") effectively unreachable through normal flows, since a subsequent `FOUND` result is a no-op per Decision 2. `UNDER_MAINTENANCE` keeps the asset non-terminal, and staff already have a manual override path via `PUT /api/assets/{id}` (`AssetUpdate.status`) to correct it by hand once the asset is located or confirmed genuinely gone. *(This is a pragmatic choice, not a fully clean one — flagging for the team leads that a real `MISSING` enum value is the more correct long-term fix, worth bundling into the same contract-reopen pass as the `IN_PROGRESS`/`PENDING` gaps from Phases 3–4, if one ever happens.)*
+   - **`RETIRED` assets are exempt from audit-driven status changes.** If an audit result (`DAMAGED` or `MISSING`) is submitted for an asset that's already `RETIRED`, the result is still recorded, but the automatic status change is skipped — `RETIRED` stays terminal, consistent with Phase 1. (A `RETIRED` asset can still be audited for record-keeping purposes; it just doesn't get resurrected by an audit finding.)
+   - **Audit lifecycle**: an audit is created `OPEN` (no status field on `AuditCreate` — it's the implicit default). `PUT /api/audits/{id}/close/` sets it to `CLOSED` and is terminal — 409 if called on an already-`CLOSED` audit. No completeness check is enforced before closing (an audit can be closed with only some assets covered) — kept simple for this phase, not a validated requirement.
+   - **Results only accepted on an `OPEN` audit**: `POST /api/audits/{id}/results/` is rejected with 409 if the parent audit is `CLOSED`.
+   - **One result per asset per audit**: a duplicate `POST` for the same `asset_id` within the same audit is rejected with 409 — there's no update/patch route for an individual result, so a correction requires a fresh audit rather than overwriting history.
+
 ---
 
 ## Open questions carried forward
-
-- **`MISSING` asset status**: the current `AssetStatus` enum is `AVAILABLE | ALLOCATED | UNDER_MAINTENANCE | RETIRED` — none of these represent "asset is missing." Either a fifth enum value (`MISSING`) needs adding (which reopens the frozen contract's enum list), or `MISSING` audit results need to map to `RETIRED` with a note, or to `UNDER_MAINTENANCE` as a stand-in for "needs investigation." This must be resolved before Phase 6 is built — flagging now so it isn't decided ad hoc by whoever implements it.
 
 - **Unreachable `PENDING` `BookingStatus`**: Phase 3 resolved this pragmatically (bookings go straight to `CONFIRMED`, since no approve route exists), but that leaves an enum value nothing can ever produce. Worth a deliberate call from both team leads on whether `PENDING` should be dropped from the enum (contract reopen) or a confirm endpoint should be added later — not urgent, but shouldn't stay silently unreachable indefinitely.
 

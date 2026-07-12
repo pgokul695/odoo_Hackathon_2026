@@ -8,6 +8,8 @@ from core.exceptions import AppException
 from core.utils import log_activity
 from shared.enums import Role
 from shared.models import Booking, Asset, User
+from modules.assets.services import AssetStateService
+from modules.notifications.service import notify
 from pydantic import BaseModel
 from uuid import UUID
 from datetime import datetime
@@ -85,7 +87,11 @@ async def create_booking(
     db.add(booking)
     db.commit()
     
-    log_activity(db, "bookings", "created", f"Created confirmed booking {booking.id} for asset {asset.id}", current_user.id)
+    log_activity(db, "bookings", "created", f"Created booking {booking.id} for asset {asset.id}", current_user.id)
+    
+    notify(db, f"Your booking for asset {asset.name} is confirmed", [current_user], current_user.id)
+    db.commit()
+    
     return StandardResponse(message="Booking confirmed", data={"id": str(booking.id)})
 
 @router.put("/{id}/cancel/", response_model=StandardResponse, dependencies=[Depends(require_role(Role.Employee, Role.DepartmentHead, Role.AssetManager, Role.Admin))])
@@ -114,4 +120,12 @@ async def cancel_booking(
     db.commit()
     
     log_activity(db, "bookings", "cancelled", f"Cancelled booking {id}", current_user.id)
+    
+    booker = db.query(User).filter(User.id == booking.employee_id).first()
+    if booker:
+        # Asset lookup might fail if asset was deleted but we can just use the ID
+        asset_name = db.query(Asset).filter(Asset.id == booking.asset_id).first().name
+        notify(db, f"Your booking for asset {asset_name} was cancelled", [booker], current_user.id)
+        db.commit()
+        
     return StandardResponse(message="Booking cancelled")
