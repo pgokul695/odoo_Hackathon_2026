@@ -42,6 +42,7 @@ interface AssetStoreContextType {
   maintenance: Maintenance[];
   audits: Audit[];
   notifications: Notification[];
+  currentUser: Employee | null;
   
   // Actions
   addAsset: (asset: Omit<Asset, 'id' | 'history'>) => Promise<void>;
@@ -98,12 +99,13 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
   const [maintenance, setMaintenance] = useState<Maintenance[]>(initialMaintenance);
   const [audits, setAudits] = useState<Audit[]>(initialAudits);
   const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
+  const [currentUser, setCurrentUser] = useState<Employee | null>(null);
 
   const loadData = async () => {
     try {
       const [
         deptRes, empRes, catRes, astRes, 
-        allocRes, transRes, bookRes, maintRes, audRes, notifRes
+        allocRes, transRes, bookRes, maintRes, audRes, notifRes, authRes
       ] = await Promise.all([
         api.get('/departments/'),
         api.get('/employees/'),
@@ -114,7 +116,8 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
         api.get('/bookings/'),
         api.get('/maintenance/'),
         api.get('/audits/'),
-        api.get('/notifications/')
+        api.get('/notifications/'),
+        api.get('/auth/me/')
       ]);
       
       if (deptRes.data) setDepartments(deptRes.data);
@@ -127,6 +130,7 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
       if (maintRes.data) setMaintenance(maintRes.data);
       if (audRes.data) setAudits(audRes.data);
       if (notifRes.data) setNotifications(notifRes.data);
+      if (authRes.data) setCurrentUser(authRes.data);
     } catch (err) {
       console.error('Failed to fetch data', err);
     }
@@ -283,6 +287,7 @@ export function AssetStoreProvider({ children }: { children: React.ReactNode }) 
       maintenance,
       audits,
       notifications,
+      currentUser,
       
       addAsset,
       updateAsset,

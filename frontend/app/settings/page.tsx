@@ -17,14 +17,21 @@ import {
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
-  const { addNotification } = useAssetStore();
+  const { addNotification, currentUser } = useAssetStore();
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'appearance'>('profile');
   
   // Profile state
-  const [username, setUsername] = useState('Keerthana Vinod');
-  const [email, setEmail] = useState('keerthana.v@assetflow.ai');
-  const role = 'Asset Manager';
+  const [username, setUsername] = useState(currentUser?.name || '');
+  const [email, setEmail] = useState(currentUser?.email || '');
+  const role = currentUser?.role || 'Asset Manager';
   const [savedSuccess, setSavedSuccess] = useState(false);
+
+  React.useEffect(() => {
+    if (currentUser) {
+      setUsername(currentUser.name);
+      setEmail(currentUser.email);
+    }
+  }, [currentUser]);
 
   const handleProfileSave = (e: React.FormEvent) => {
     e.preventDefault();

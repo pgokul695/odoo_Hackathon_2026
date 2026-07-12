@@ -200,6 +200,9 @@ uv run pytest --cov=app
 ## 🔑 Demo Access
 
 The seeder builds a fully interconnected demo organization — **TechNova Solutions Pvt Ltd** — with 41 users, 65 assets, active and historical workflows across every module, and notifications/activity-log entries generated inline as real side effects, not fabricated filler. Every non-pending seeded account has a working password through the real auth path, so you can log in and explore each role directly:
+## Admin
+- **Alex Mercer** — alex.mercer@technova.io — `password123`
+
 
 | Role | Example login | What you'll see |
 |---|---|---|
@@ -207,7 +210,7 @@ The seeder builds a fully interconnected demo organization — **TechNova Soluti
 | `AssetManager` | *(see seed output)* | Unscoped asset/allocation/transfer/maintenance/audit control |
 | `DepartmentHead` | *(see seed output)* | Department-scoped views, transfer approvals for their department |
 | `Employee` | *(see seed output)* | Personal allocations, bookings, and transfer requests |
-
+See Full list in [Demo Accounts](./docs/demo_acc.md)
 Run the seeder and check its console summary for the full generated credential list.
 
 ---

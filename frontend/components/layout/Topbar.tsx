@@ -11,7 +11,16 @@ interface TopbarProps {
 
 export function Topbar({ onMenuClick }: TopbarProps) {
   const { theme, setTheme } = useTheme();
-  const { notifications } = useAssetStore();
+  const { notifications, currentUser } = useAssetStore();
+
+  const userName = currentUser?.name || 'User';
+  const roleName = currentUser?.role || 'Asset Manager';
+  const initials = userName
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
@@ -90,11 +99,11 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         {/* User Profile Block */}
         <Link href="/settings" className="flex items-center space-x-2 pl-3 border-l border-border hover:opacity-85 transition-opacity">
           <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-bold text-primary shadow-glow">
-            KV
+            {initials}
           </div>
           <div className="hidden md:flex flex-col text-left">
-            <span className="text-xs font-semibold text-foreground leading-none">Keerthana</span>
-            <span className="text-[9px] text-muted-foreground mt-0.5 leading-none">Asset Manager</span>
+            <span className="text-xs font-semibold text-foreground leading-none">{userName.split(' ')[0]}</span>
+            <span className="text-[9px] text-muted-foreground mt-0.5 leading-none">{roleName}</span>
           </div>
         </Link>
       </div>

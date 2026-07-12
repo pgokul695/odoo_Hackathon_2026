@@ -16,7 +16,7 @@ import { api } from '@/lib/api';
 import React, { useEffect, useState } from 'react';
 
 export default function DashboardPage() {
-  const { departments } = useAssetStore();
+  const { departments, currentUser } = useAssetStore();
 
   const [dashboardData, setDashboardData] = useState<unknown>(null);
 
@@ -54,7 +54,7 @@ export default function DashboardPage() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-border/60">
         <div className="space-y-1">
           <h1 className="text-2xl font-black text-foreground tracking-tight md:text-3xl">
-            Good morning, Keerthana.
+            Good morning, {currentUser?.name?.split(' ')[0] || 'User'}.
           </h1>
           <p className="text-sm text-muted-foreground font-medium">
             Your asset ecosystem is operating efficiently.
