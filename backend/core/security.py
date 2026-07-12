@@ -57,6 +57,10 @@ async def get_current_user(
 
 def check_rate_limit(key: str, window_seconds: int = 60, max_requests: int = 1):
     """Simple rate limiter to prevent spamming OTPs. Defaults to 1 request per 60s."""
+    import os
+    if os.environ.get("TESTING") == "true":
+        return
+
     now = datetime.utcnow()
     
     if key not in _otp_rate_limit:

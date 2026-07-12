@@ -18,6 +18,7 @@ router = APIRouter(dependencies=[Depends(require_verified_and_assigned())])
 
 class AllocationCreate(BaseModel):
     asset_id: UUID
+    employee_id: UUID
 
 class ReturnRequest(BaseModel):
     condition_notes: str
@@ -54,7 +55,7 @@ async def create_allocation(
         
     alloc = Allocation(
         asset_id=asset.id,
-        employee_id=current_user.id,
+        employee_id=req.employee_id,
         status="ACTIVE",
         allocated_at=datetime.utcnow()
     )

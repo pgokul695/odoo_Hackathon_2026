@@ -231,7 +231,7 @@ async def reset_password(req: ResetPasswordRequest, db: Session = Depends(get_db
 
 @router.get("/me/", response_model=StandardResponse)
 async def get_me(current_user: User = Depends(get_current_user)):
-    return StandardResponse(data={"id": str(current_user.id), "name": current_user.name, "email": current_user.email, "two_factor_enabled": current_user.two_factor_enabled})
+    return StandardResponse(data={"id": str(current_user.id), "name": current_user.name, "email": current_user.email, "role": current_user.role, "two_factor_enabled": current_user.two_factor_enabled})
 
 @router.post("/logout/", response_model=StandardResponse)
 async def logout():

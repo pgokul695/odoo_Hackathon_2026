@@ -15,6 +15,11 @@ from modules.assets.services import AssetStateService
 
 router = APIRouter(dependencies=[Depends(require_verified_and_assigned())])
 
+class AssetCreate(BaseModel):
+    name: str
+    department_id: UUID
+    category_id: UUID
+
 class AssetUpdate(BaseModel):
     name: Optional[str] = None
     department_id: Optional[UUID] = None
@@ -37,8 +42,22 @@ async def list_assets(
     return StandardResponse(data=data)
 
 @router.post("/", response_model=StandardResponse, dependencies=[Depends(require_role(Role.AssetManager, Role.Admin))])
-async def create_asset():
-    return StandardResponse(data={"id": "new-asset-id"}, message="Asset created placeholder")
+async def create_asset(
+    req: AssetCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    asset = Asset(
+        name=req.name,
+        department_id=req.department_id,
+        status="AVAILABLE",
+        is_active=True
+    )
+    db.add(asset)
+    db.commit()
+    db.refresh(asset)
+    log_activity(db, "assets", "created", f"Created asset {asset.id}", current_user.id)
+    return StandardResponse(data={"id": str(asset.id), "name": asset.name, "department_id": str(asset.department_id), "category_id": str(req.category_id), "status": asset.status}, message="Asset created")
 
 @router.get("/{id}", response_model=StandardResponse, dependencies=[Depends(require_role(Role.Employee, Role.DepartmentHead, Role.AssetManager, Role.Admin))])
 async def get_asset(

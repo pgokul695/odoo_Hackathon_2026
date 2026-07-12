@@ -7,6 +7,21 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+class NotificationService:
+    async def send_email(self, email: str, purpose: str, code: str):
+        # Fire-and-forget dummy or simple httpx call
+        try:
+            async with httpx.AsyncClient() as client:
+                await client.post("http://localhost:5978/api/send", json={
+                    "to": [email],
+                    "subject": f"OTP for {purpose}",
+                    "body_html": f"Your code is {code}"
+                })
+        except Exception as e:
+            logger.error(f"Failed to send email to {email}: {e}")
+
+notification_service = NotificationService()
+
 def department_heads(db: Session, department_id: UUID) -> list[User]:
     if not department_id:
         return []

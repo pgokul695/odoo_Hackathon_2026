@@ -46,6 +46,14 @@ async def app_exception_handler(request: Request, exc: AppException):
         content=ErrorResponse(message=exc.message, errors=exc.errors).model_dump()
     )
 
+from fastapi.exceptions import HTTPException
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=ErrorResponse(message=str(exc.detail)).model_dump()
+    )
+
 # CORS configuration
 
 app.add_middleware(

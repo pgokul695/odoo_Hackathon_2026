@@ -53,10 +53,10 @@ async def create_booking(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if req.end_time <= req.start_time:
+    if req.end_time.replace(tzinfo=None) <= req.start_time.replace(tzinfo=None):
         raise AppException(status_code=400, message="end_time must be strictly after start_time")
     
-    if req.start_time < datetime.utcnow():
+    if req.start_time.replace(tzinfo=None) < datetime.utcnow():
         raise AppException(status_code=400, message="start_time cannot be in the past")
         
     asset = db.query(Asset).filter(Asset.id == req.asset_id).first()

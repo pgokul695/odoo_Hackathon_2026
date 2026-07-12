@@ -9,3 +9,8 @@ python-jose[cryptography]
 passlib[bcrypt]
 httpx
 python-multipart
+pytest
+pytest-cov
+pytest-asyncio
+respx
+freezegun
